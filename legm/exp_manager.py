@@ -617,14 +617,14 @@ class ExperimentManager:
 
             if "step" in kwargs:
                 step = kwargs["step"]
-            elif "best_epoch" in kwargs:
+            elif "best_step" in kwargs:
                 step = kwargs["best_step"]
             else:
                 metric = kwargs["metric"]
                 argopt = (
-                    lambda x: np.argmax(x)
+                    (lambda x: np.argmax(x))
                     if kwargs["higher_better"]
-                    else lambda x: np.argmin(x)
+                    else (lambda x: np.argmin(x))
                 )
 
                 step = argopt(self._metric_dict[metric])
@@ -634,9 +634,10 @@ class ExperimentManager:
 
         for metric_name in self._metric_dict:
             if metric_name not in self._time_metric_names:
+                metric_step = self._metric_step_dict[metric_name].index(step)
                 self._best_metric_dict[
                     f"best_{metric_name}"
-                ] = self._metric_dict[metric_name][step]
+                ] = self._metric_dict[metric_name][metric_step]
 
     def log(self):
         """Logs all metrics."""
