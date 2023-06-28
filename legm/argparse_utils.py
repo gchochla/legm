@@ -7,6 +7,7 @@ def add_arguments(
     parser: argparse.ArgumentParser,
     arguments: Dict[str, Dict[str, Any]],
     exclude: List[str] = None,
+    replace_underscores: bool = False,
 ):
     """Adds arguments from `arguments` to `parser`.
 
@@ -15,6 +16,8 @@ def add_arguments(
         arguments: a dictionary with name of variable
             as key and kwargs as value.
         exclude: list of arguments to exclude.
+        replace_underscores: whether to replace underscores
+            with dashes in CL argument.
     """
 
     exclude = set(exclude or [])
@@ -22,7 +25,12 @@ def add_arguments(
         if k not in exclude:
             v_argparse = deepcopy(v)
             v_argparse.pop("metadata", None)
-            parser.add_argument(f"--{k}", **v_argparse)
+            parser.add_argument(
+                f"--{k}"
+                if not replace_underscores
+                else f"--{k.replace('_', '-')}",
+                **v_argparse,
+            )
 
 
 def add_metadata(
