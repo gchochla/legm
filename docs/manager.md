@@ -1,6 +1,6 @@
 # Your experiment tracker and manager
 
-Overall, the `legm.ExperimentHandler`, at its current state, is supposed to hold all hyperparameters and hence define the experiment (and be able to differentiate between different experiments), log results and aggregate across different runs for these experiments (in yaml files), and plot the results for easier gauging. Moreover, it logs the data in `Tensorboard`, which enables comparison between different experiments. We use a general folder to hold experiments of the same kind, which within it contains all the different hyperparameter configurations. `Tensoboard` can be launched at the level of the general folder, and therefore can be used to compare across experiments.
+Overall, the `legm.ExperimentManager`, at its current state, is supposed to hold all hyperparameters and hence define the experiment (and be able to differentiate between different experiments), log results and aggregate across different runs for these experiments (in yaml files), and plot the results for easier gauging. Moreover, it logs the data in `Tensorboard`, which enables comparison between different experiments. We use a general folder to hold experiments of the same kind, which within it contains all the different hyperparameter configurations. `Tensoboard` can be launched at the level of the general folder, and therefore can be used to compare across experiments.
 
 ## Initialization
 
@@ -19,9 +19,9 @@ More information is required for some hyperparameters. For such uses, like denot
 After registering hyperparameters, they are then accesible as simple attributes, e.g.
 
 ```python
-exp_handler = ExperimentHandler(this_path, that_path)
-exp_handler.set_param("learning_rate", 1e-2)
-exp_handler.learning_rate
+exp_manager = ExperimentManager(this_path, that_path)
+exp_manager.set_param("learning_rate", 1e-2)
+exp_manager.learning_rate
 ```
 
 To begin logging, we have to use `.start()`. During training, you can register metrics with similar mechanisms to hyperparameters. The simplest method is `set_metric(metric_name: str, metric_value: float, test_or_dev: bool, step: int)`. However, we recommend `set_dict_metrics(metric_dict: Dict[str, float], test_or_dev: bool, step: int)`. At the end of training, you can use `.set_best()` to denote which step was the best (e.g., derived from early stopping). Otherwise, the last step is picked.

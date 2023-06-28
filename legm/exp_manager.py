@@ -15,7 +15,7 @@ import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
 
-class ExperimentHandler:
+class ExperimentManager:
     """Module that handles everything that's necessary to compare
     and aggregate metrics across experiments.
 
@@ -1337,3 +1337,6 @@ def get_best():
         .replace("'", "")
         .replace(",", "")
     )
+
+
+ExperimentHandler = ExperimentManager  # to be backwards compatible
