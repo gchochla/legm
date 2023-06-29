@@ -610,6 +610,10 @@ class ExperimentManager:
                 and "higher_better" if `method=="early_stopping"`.
 
         """
+
+        step = None
+        idx = -1  # method == "last"
+
         if method == "early_stopping":
             assert ("step" in kwargs or "best_step" in kwargs) or (
                 "metric" in kwargs and "higher_better" in kwargs
@@ -627,17 +631,15 @@ class ExperimentManager:
                     else (lambda x: np.argmin(x))
                 )
 
-                step = argopt(self._metric_dict[metric])
-
-        elif method == "last":
-            step = -1
+                idx = argopt(self._metric_dict[metric])
 
         for metric_name in self._metric_dict:
             if metric_name not in self._time_metric_names:
-                metric_step = self._metric_step_dict[metric_name].index(step)
+                if step is not None:
+                    idx = self._metric_step_dict[metric_name].index(step)
                 self._best_metric_dict[
                     f"best_{metric_name}"
-                ] = self._metric_dict[metric_name][metric_step]
+                ] = self._metric_dict[metric_name][idx]
 
     def log(self):
         """Logs all metrics."""
