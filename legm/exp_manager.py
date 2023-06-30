@@ -80,16 +80,6 @@ class ExperimentManager:
         self._writer = None
 
     def __getattr__(self, name):
-        if name == "model_save_filename":
-            config_directory = self._get_experiment_folder(
-                pattern_matching=False
-            )
-            model_filename = os.path.join(
-                config_directory,
-                (self._description + "-" if self._description else "")
-                + "model.pt",
-            )
-            return model_filename
         assert name in self._param_dict
         return self._param_dict[name]
 
@@ -459,11 +449,21 @@ class ExperimentManager:
 
         return actual_decorator
 
+    def get_save_filename(self, basename: str = "model.pt") -> str:
+        """Returns filename within the experiment folder
+        to save object (default: PyTorch model)."""
+        config_directory = self._get_experiment_folder(pattern_matching=False)
+        model_filename = os.path.join(
+            config_directory,
+            (self._description + "-" if self._description else "") + basename,
+        )
+        return model_filename
+
     def _get_experiment_folder(
-        self, pattern_matching: bool
+        self, pattern_matching: bool = False
     ) -> Union[str, List[str]]:
         """Returns name of directory of experiment (and creates it if
-        it doens't exist).
+        it doesn't exist).
 
         Args:
             pattern_matching: whether to return the name of the current
