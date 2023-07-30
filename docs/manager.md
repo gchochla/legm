@@ -16,7 +16,7 @@ More information is required for some hyperparameters. For such uses, like denot
 
 ## Start using
 
-After registering hyperparameters, they are then accesible as simple attributes, e.g.
+After registering hyperparameters, they are then accessible as simple attributes, e.g.
 
 ```python
 exp_manager = ExperimentManager(this_path, that_path)

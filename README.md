@@ -1,4 +1,4 @@
-# LeGM: Your trusted general manager to keep you sane during your LM experiments
+# LeGM: Your trusted general manager to keep you sane during your ML experiments
 
 Utilities:
 - [ExperimentHandler](./docs/handler.md): logs and differentiates between experiments. Easily configure experiments with argparse.

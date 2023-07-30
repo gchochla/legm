@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="LeGM",
-    version="1.0.4",
+    version="1.0.5",
     description="Your general ML experiment manager",
     author="Georgios Chochlakis",
     author_email="chochlak@usc.edu",
@@ -17,7 +17,7 @@ setup(
     extras_require={"dev": ["black", "pytest"]},
     entry_points={
         "console_scripts": [
-            "best_from_logs = legm.logging_utils:get_best",
+            "best_from_logs = legm.exp_manager:get_best",
         ]
     },
 )
