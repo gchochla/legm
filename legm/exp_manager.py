@@ -80,8 +80,10 @@ class ExperimentManager:
         self._writer = None
 
     def __getattr__(self, name):
-        assert name in self._param_dict
-        return self._param_dict[name]
+        try:
+            return self._param_dict[name]
+        except KeyError:
+            raise AttributeError(f"Param {name} not set")
 
     def __setstate__(self, d):  # for pickling
         self.__dict__ = d
