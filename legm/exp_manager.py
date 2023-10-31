@@ -4,6 +4,7 @@ import yaml
 import pickle
 import re
 import pprint
+import logging
 from numbers import Number
 from types import SimpleNamespace
 from typing import Any, Dict, Optional, Union, Callable, List, Tuple, Sequence
@@ -40,15 +41,27 @@ class ExperimentManager:
         _dummy_active: a value of param that is considered active.
         _experiment_folder: actual folder used to log.
         _writer: tensorboard summary writer.
+        _logger: logger (logs in `log.txt`).
         _time_metric_names: names assumed to include run time.
         _parent_param_value_dict: active value of parent.
     """
+
+    @staticmethod
+    def argparse_args():
+        return dict(
+            logging_level=dict(
+                type=str,
+                default="info",
+                choices=["info", "debug", "warning", "error"],
+            ),
+        )
 
     def __init__(
         self,
         experiment_root_directory: str,
         experiment_name: str,
         description: Optional[str] = None,
+        logging_level: int | str = logging.INFO,
     ):
         """Init.
 
@@ -78,6 +91,15 @@ class ExperimentManager:
 
         self._experiment_folder = None
         self._writer = None
+        self._logger = None
+
+        self.logging_level = (
+            logging_level
+            if isinstance(logging_level, int)
+            else getattr(logging, logging_level.upper())
+        )
+
+        self.logging_file = None
 
     def __getattr__(self, name):
         try:
@@ -188,6 +210,24 @@ class ExperimentManager:
         name_filename = os.path.join(self._experiment_folder, "names.txt")
         with open(name_filename, "w") as fp:
             fp.write("\n".join(sorted(self._name_params)))
+
+        self.logging_file = os.path.join(self._experiment_folder, "log.txt")
+        fp = open(self.logging_file, "a")
+        fp.close()
+
+        logging.basicConfig(
+            filename=self.logging_file,
+            level=self.logging_level,
+            format="%(levelname)s-%(name)s(%(asctime)s)   %(message)s",
+        )
+        self._logger = logging.getLogger(__name__)
+
+    def log_message(self, message: str, level: int | None = None):
+        """Logs message to file"""
+        if level is None:
+            level = self.logging_level
+
+        self._logger.log(level, message)
 
     def tensorboard_write(
         self, name: str, value: Any, step: Optional[int] = None
