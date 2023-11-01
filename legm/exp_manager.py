@@ -53,6 +53,8 @@ class ExperimentManager:
                 type=str,
                 default="info",
                 choices=["info", "debug", "warning", "error"],
+                help="logging level",
+                metadata=dict(disable_comparison=True),
             ),
         )
 
@@ -199,10 +201,6 @@ class ExperimentManager:
             os.path.join(self._experiment_folder, "tensorboard")
         )
 
-        pkl_filename = os.path.join(self._experiment_folder, "obj.pkl")
-        with open(pkl_filename, "wb") as fp:
-            pickle.dump(self, fp)
-
         yml_filename = os.path.join(self._experiment_folder, "params.yml")
         with open(yml_filename, "w") as fp:
             yaml.dump(self._param_dict, fp)
@@ -212,8 +210,7 @@ class ExperimentManager:
             fp.write("\n".join(sorted(self._name_params)))
 
         self.logging_file = os.path.join(self._experiment_folder, "log.txt")
-        fp = open(self.logging_file, "a")
-        fp.close()
+        open(self.logging_file, "a").close()  # touch file
 
         logging.basicConfig(
             filename=self.logging_file,
@@ -221,6 +218,10 @@ class ExperimentManager:
             format="%(levelname)s-%(name)s(%(asctime)s)   %(message)s",
         )
         self._logger = logging.getLogger(__name__)
+
+        pkl_filename = os.path.join(self._experiment_folder, "obj.pkl")
+        with open(pkl_filename, "wb") as fp:
+            pickle.dump(self, fp)
 
     def log_message(self, message: str, level: int | None = None):
         """Logs message to file"""
