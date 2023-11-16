@@ -15,8 +15,10 @@ import matplotlib
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
+from legm import LoggingMixin
 
-class ExperimentManager:
+
+class ExperimentManager(LoggingMixin):
     """Module that handles everything that's necessary to compare
     and aggregate metrics across experiments.
 
@@ -41,9 +43,9 @@ class ExperimentManager:
         _dummy_active: a value of param that is considered active.
         _experiment_folder: actual folder used to log.
         _writer: tensorboard summary writer.
-        _logger: logger (logs in `log.txt`).
         _time_metric_names: names assumed to include run time.
         _parent_param_value_dict: active value of parent.
+        See `LoggingMixin` for other attributes.
     """
 
     @staticmethod
@@ -76,6 +78,8 @@ class ExperimentManager:
                 (e.g. for internal code change).
         """
 
+        super().__init__()
+
         self._directory = experiment_root_directory
         self._experiment_name = experiment_name
         self._description = description if description is not None else ""
@@ -93,7 +97,6 @@ class ExperimentManager:
 
         self._experiment_folder = None
         self._writer = None
-        self._logger = None
 
         self.logging_level = (
             logging_level
@@ -212,23 +215,13 @@ class ExperimentManager:
         self.logging_file = os.path.join(self._experiment_folder, "log.txt")
         open(self.logging_file, "a").close()  # touch file
 
-        logging.basicConfig(
-            filename=self.logging_file,
-            level=self.logging_level,
-            format="%(levelname)s-%(name)s(%(asctime)s)   %(message)s",
+        self.create_logger(
+            logging_file=self.logging_file, logging_level=self.logging_level
         )
-        self._logger = logging.getLogger(__name__)
 
         pkl_filename = os.path.join(self._experiment_folder, "obj.pkl")
         with open(pkl_filename, "wb") as fp:
             pickle.dump(self, fp)
-
-    def log_message(self, message: str, level: int | None = None):
-        """Logs message to file"""
-        if level is None:
-            level = self.logging_level
-
-        self._logger.log(level, message)
 
     def tensorboard_write(
         self, name: str, value: Any, step: Optional[int] = None
@@ -684,7 +677,7 @@ class ExperimentManager:
                     f"best_{metric_name}"
                 ] = self._metric_dict[metric_name][idx]
 
-    def log(self):
+    def log_metrics(self):
         """Logs all metrics."""
         config_directory = self._get_experiment_folder(pattern_matching=False)
         config_filename = os.path.join(config_directory, "metrics.yml")

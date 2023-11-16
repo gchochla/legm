@@ -28,4 +28,4 @@ To begin logging, we have to use `.start()`. During training, you can register m
 
 ## Log
 
-To log all those results, at the end of training, use `.log()`, which creates `metrics.yml` that contains all metrics for all steps, `.aggregate_results()`, which aggregates the best and test metrics and calculates mean and standard deviation from the `metrics.yml` file (because more runs may be logged in there), and `.plot()` (that contains optional arguments) to plot the metrics.
+To log all those results, at the end of training, use `.log_metrics()`, which creates `metrics.yml` that contains all metrics for all steps, `.aggregate_results()`, which aggregates the best and test metrics and calculates mean and standard deviation from the `metrics.yml` file (because more runs may be logged in there) into `aggregated_metrics.yml`, and `.plot()` (that contains optional arguments) to plot the metrics in `plots/`.
