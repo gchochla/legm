@@ -15,7 +15,7 @@ import matplotlib
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
-from legm import LoggingMixin
+from legm.logging_utils import LoggingMixin
 
 
 class ExperimentManager(LoggingMixin):
