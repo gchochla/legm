@@ -894,15 +894,13 @@ class ExperimentManager(LoggingMixin):
                 continue
             for _id, metric_dict in experiment.items():
                 for metric, value in metric_dict.items():
-                    if metric.startswith("best_") and not isinstance(
-                        value, list
-                    ):
+                    if metric.startswith("best_") and isinstance(value, Number):
                         indexed_best_metrics[_id].setdefault(metric, []).append(
                             value
                         )
 
-                    elif metric.startswith("test_") and not isinstance(
-                        value, list
+                    elif metric.startswith("test_") and isinstance(
+                        value, Number
                     ):
                         indexed_test_metrics[_id].setdefault(metric, []).append(
                             value
