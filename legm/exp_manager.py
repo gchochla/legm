@@ -5,6 +5,7 @@ import pickle
 import re
 import pprint
 import logging
+from copy import deepcopy
 from numbers import Number
 from types import SimpleNamespace
 from typing import Any, Dict, Optional, Union, Callable, List, Tuple, Sequence
@@ -37,6 +38,14 @@ class ExperimentManager(LoggingMixin):
         _best_metric_dict: name and best value of metrics (based on method
             of selection designated by user or last epoch by default).
         _test_metric_dict: name and test value of metrics.
+        _metric_dict_indexed: name and values of metrics (across epochs/steps)
+            for different IDs.
+        _metric_step_dict_indexed: name and steps of metrics for different IDs.
+        _best_metric_dict_indexed: name and best value of metrics (based on
+            method of selection designated by user or last epoch by default)
+            for different IDs.
+        _test_metric_dict_indexed: name and test value of metrics for different
+            IDs.
         _parent_param_dict: name of parent parameter for some parameter
             (if any). If parent param is `None` or `False`, child param's
             value is not considered.
@@ -80,21 +89,10 @@ class ExperimentManager(LoggingMixin):
 
         super().__init__()
 
+        # basics
         self._directory = experiment_root_directory
         self._experiment_name = experiment_name
         self._description = description if description is not None else ""
-        self._param_dict = {}
-        self._disabled_params = set()
-        self._name_params = set()
-        self._metric_dict = {}
-        self._metric_step_dict = {}
-        self._best_metric_dict = {}
-        self._test_metric_dict = {}
-        self._parent_param_dict = {}
-        self._parent_param_value_dict = defaultdict(dict)
-
-        self._time_metric_names = ("time", "time_per_sample")
-
         self._experiment_folder = None
         self._writer = None
 
@@ -105,6 +103,28 @@ class ExperimentManager(LoggingMixin):
         )
 
         self.logging_file = None
+
+        # log hyperparams
+        self._param_dict = {}
+        self._disabled_params = set()
+        self._name_params = set()
+        self._parent_param_dict = {}
+        self._parent_param_value_dict = defaultdict(dict)
+
+        # log metrics
+        self._metric_dict = {}
+        self._metric_step_dict = {}
+        self._best_metric_dict = {}
+        self._test_metric_dict = {}
+
+        # log indexed metrics
+        self._metric_dict_indexed = {}
+        self._metric_step_dict_indexed = {}
+        self._best_metric_dict_indexed = {}
+        self._test_metric_dict_indexed = {}
+
+        # log time
+        self._time_metric_names = ("time", "time_per_sample")
 
     def __getattr__(self, name):
         try:
@@ -389,8 +409,10 @@ class ExperimentManager(LoggingMixin):
         value: Any,
         test: bool = False,
         step: Optional[int] = None,
+        id: Optional[str] = None,
     ) -> Any:
         """Sets metric `name` to `value` and returns `value`.
+        If `id` is not `None`, the metric is *indexed*.
 
         Args:
             name: str name of variable.
@@ -398,6 +420,7 @@ class ExperimentManager(LoggingMixin):
             test: whether this is a test or dev metric
                 (default is dev, aka False).
             step: steps trained so far, default is not to log step.
+            id: optional id to index metric.
 
         Returns:
             The value of the metric.
@@ -412,22 +435,42 @@ class ExperimentManager(LoggingMixin):
         if not test:
             if name.startswith("best_"):
                 name = "_" + name
-            self._metric_dict.setdefault(name, []).append(value)
-            self._metric_step_dict.setdefault(name, []).append(step)
+            if id is not None:
+                self._metric_dict_indexed.setdefault(id, {}).setdefault(
+                    name, []
+                ).append(value)
+                self._metric_step_dict_indexed.setdefault(id, {}).setdefault(
+                    name, []
+                ).append(step)
+            else:
+                self._metric_dict.setdefault(name, []).append(value)
+                self._metric_step_dict.setdefault(name, []).append(step)
         else:
-            self._test_metric_dict["test_" + name] = value
+            if id is not None:
+                self._test_metric_dict_indexed.setdefault(id, {})[
+                    "test_" + name
+                ] = value
+            else:
+                self._test_metric_dict["test_" + name] = value
         return value
 
     def set_dict_metrics(
         self,
-        metrics_dict: Dict[str, Any],
+        metrics_dict: Dict[str, Any] | Dict[str, Dict[str, Any]],
         test: bool = False,
         step: Optional[int] = None,
     ) -> Dict[str, Any]:
         """`set_metric` for names and values in a dict.
-        Returns the dict."""
-        for name, value in metrics_dict.items():
-            self.set_metric(name, value, test, step)
+        Handles additionally indexed dict (index is first key).
+        Returns the input dict."""
+
+        for k, v in metrics_dict.items():
+            if isinstance(v, dict):
+                for kk, vv in v.items():
+                    self.set_metric(kk, vv, test=test, step=step, id=k)
+            else:
+                self.set_metric(k, v, test=test, step=step)
+
         return metrics_dict
 
     def disable_param(self, name: str):
@@ -607,19 +650,34 @@ class ExperimentManager(LoggingMixin):
         """
 
         experiments = {}
+        indexed_experiments = {}
         steps = {}
         for config_directory in config_directories:
-            config_filename = os.path.join(config_directory, "metrics.yml")
+            metrics_filename = os.path.join(config_directory, "metrics.yml")
+            indexed_metrics_filename = os.path.join(
+                config_directory, "indexed_metrics.yml"
+            )
             step_filename = os.path.join(config_directory, "steps.yml")
 
-            assert os.path.exists(config_filename)
             assert os.path.exists(step_filename)
 
-            with open(config_filename) as fp:
-                config_experiments = yaml.safe_load(fp)
+            if os.path.exists(metrics_filename):
+                with open(metrics_filename) as fp:
+                    config_experiments = yaml.safe_load(fp)
+            else:
+                config_experiments = {}
 
-            with open(step_filename) as fp:
-                config_steps = yaml.safe_load(fp)
+            if os.path.exists(indexed_metrics_filename):
+                with open(indexed_metrics_filename) as fp:
+                    config_experiments_indexed = yaml.safe_load(fp)
+            else:
+                config_experiments_indexed = {}
+
+            if os.path.exists(step_filename):
+                with open(step_filename) as fp:
+                    config_steps = yaml.safe_load(fp)
+            else:
+                config_steps = {}
 
             for metric in config_steps:
                 if len(steps.get(metric, [])) < len(config_steps[metric]):
@@ -634,7 +692,16 @@ class ExperimentManager(LoggingMixin):
                 }
             )
 
-        return experiments, steps
+            indexed_experiments.update(
+                {
+                    f"experiment_{len(indexed_experiments)+i}": config_experiments_indexed[
+                        f"experiment_{i}"
+                    ]
+                    for i in range(len(config_experiments_indexed))
+                }
+            )
+
+        return experiments, indexed_experiments, steps
 
     def set_best(self, method: str, **kwargs):
         """Sets `best_metric_dict` based on lists in `metric_dict`.
@@ -644,7 +711,6 @@ class ExperimentManager(LoggingMixin):
                 "best" metrics. Can be `"early_stopping"`, `"last"`.
             kwargs: must contain `"step"`, `"best_step"` or `"metric"`
                 and "higher_better" if `method=="early_stopping"`.
-
         """
 
         step = None
@@ -677,17 +743,37 @@ class ExperimentManager(LoggingMixin):
                     f"best_{metric_name}"
                 ] = self._metric_dict[metric_name][idx]
 
+        for _id in self._metric_dict_indexed:
+            for metric_name in self._metric_dict_indexed[_id]:
+                if metric_name not in self._time_metric_names:
+                    if step is not None:
+                        idx = self._metric_step_dict_indexed[_id][
+                            metric_name
+                        ].index(step)
+                    self._best_metric_dict_indexed.setdefault(_id, {})[
+                        f"best_{metric_name}"
+                    ] = self._metric_dict_indexed[_id][metric_name][idx]
+
     def log_metrics(self):
         """Logs all metrics."""
         config_directory = self._get_experiment_folder(pattern_matching=False)
-        config_filename = os.path.join(config_directory, "metrics.yml")
+        metric_filename = os.path.join(config_directory, "metrics.yml")
+        indexed_metric_filename = os.path.join(
+            config_directory, "indexed_metrics.yml"
+        )
         step_filename = os.path.join(config_directory, "steps.yml")
 
-        if os.path.exists(config_filename):
-            with open(config_filename) as fp:
+        if os.path.exists(metric_filename):
+            with open(metric_filename) as fp:
                 experiments = yaml.safe_load(fp)
         else:
             experiments = {}
+
+        if os.path.exists(indexed_metric_filename):
+            with open(indexed_metric_filename) as fp:
+                indexed_experiments = yaml.safe_load(fp)
+        else:
+            indexed_experiments = {}
 
         if os.path.exists(step_filename):
             with open(step_filename) as fp:
@@ -698,22 +784,15 @@ class ExperimentManager(LoggingMixin):
         if not self._best_metric_dict:
             self.set_best("last")
 
-        experiment = {
-            metric_name: metric_values
-            for metric_name, metric_values in self._metric_dict.items()
-        }
-        experiment.update(
-            {
-                metric_name: metric_value
-                for metric_name, metric_value in self._best_metric_dict.items()
-            }
-        )
-        experiment.update(
-            {
-                metric_name: metric_value
-                for metric_name, metric_value in self._test_metric_dict.items()
-            }
-        )
+        experiment = deepcopy(self._metric_dict)
+        experiment.update(self._best_metric_dict)
+        experiment.update(self._test_metric_dict)
+
+        indexed_experiment = deepcopy(self._metric_dict_indexed)
+        for _id, value in self._best_metric_dict_indexed.items():
+            indexed_experiment[_id].update(value)
+        for _id, value in self._test_metric_dict_indexed.items():
+            indexed_experiment[_id].update(value)
 
         # write steps
         for metric in self._metric_step_dict:
@@ -729,8 +808,18 @@ class ExperimentManager(LoggingMixin):
 
             experiments[f"experiment_{len(experiments)}"] = experiment
 
-            with open(config_filename, "w") as fp:
+            with open(metric_filename, "w") as fp:
                 yaml.dump(experiments, fp)
+
+        if indexed_experiment:
+            indexed_experiment.update({"description": self._description})
+
+            indexed_experiments[
+                f"experiment_{len(indexed_experiments)}"
+            ] = indexed_experiment
+
+            with open(indexed_metric_filename, "w") as fp:
+                yaml.dump(indexed_experiments, fp)
 
     def aggregate_results(
         self, aggregation: Union[str, Dict[str, str]] = "mean"
@@ -772,29 +861,58 @@ class ExperimentManager(LoggingMixin):
 
         config_directories = self._get_experiment_folder(pattern_matching=True)
 
-        experiments, _ = self._parse_experiments_from_configs(
-            config_directories
-        )
+        (
+            experiments,
+            indexed_experiments,
+            _,
+        ) = self._parse_experiments_from_configs(config_directories)
 
         best_metrics = {}
         test_metrics = {}
         time_metrics = {}
 
+        # collect metrics
         for experiment in experiments.values():
-            if experiment["description"] == self._description:
-                for metric, value in experiment.items():
+            if experiment.pop("description") != self._description:
+                continue
+            for metric, value in experiment.items():
+                if metric.startswith("best_") and not isinstance(value, list):
+                    best_metrics.setdefault(metric, []).append(value)
+
+                elif metric.startswith("test_") and not isinstance(value, list):
+                    test_metrics.setdefault(metric, []).append(value)
+                elif metric in self._time_metric_names:
+                    time_metrics.setdefault(metric, []).extend(value)
+
+        indexed_best_metrics = defaultdict(dict)
+        indexed_test_metrics = defaultdict(dict)
+        indexed_time_metrics = defaultdict(dict)
+
+        # collect indexed metrics
+        for experiment in indexed_experiments.values():
+            if experiment.pop("description") != self._description:
+                continue
+            for _id, metric_dict in experiment.items():
+                for metric, value in metric_dict.items():
                     if metric.startswith("best_") and not isinstance(
                         value, list
                     ):
-                        best_metrics.setdefault(metric, []).append(value)
+                        indexed_best_metrics[_id].setdefault(metric, []).append(
+                            value
+                        )
 
                     elif metric.startswith("test_") and not isinstance(
                         value, list
                     ):
-                        test_metrics.setdefault(metric, []).append(value)
+                        indexed_test_metrics[_id].setdefault(metric, []).append(
+                            value
+                        )
                     elif metric in self._time_metric_names:
-                        time_metrics.setdefault(metric, []).extend(value)
+                        indexed_time_metrics[_id].setdefault(metric, []).extend(
+                            value
+                        )
 
+        # aggregate metrics
         aggregated_metrics = {}
         for metric, values in best_metrics.items():
             method = aggregation.get(
@@ -812,21 +930,71 @@ class ExperimentManager(LoggingMixin):
         for metric, values in time_metrics.items():
             aggregated_metrics[metric] = aggregate("mean", values)
 
+        # aggregate indexed metrics
+        aggregated_indexed_metrics = {}
+        for _id, metric_dict in indexed_best_metrics.items():
+            for metric, values in metric_dict.items():
+                method = aggregation.get(
+                    metric[len("best_") :], default_aggregation
+                )
+
+                aggregated_indexed_metrics.setdefault(_id, {})[
+                    metric
+                ] = aggregate(method, values)
+
+        for _id, metric_dict in indexed_test_metrics.items():
+            for metric, values in metric_dict.items():
+                method = aggregation.get(
+                    metric[len("test_") :], default_aggregation
+                )
+
+                aggregated_indexed_metrics.setdefault(_id, {})[
+                    metric
+                ] = aggregate(method, values)
+
+        for _id, metric_dict in indexed_time_metrics.items():
+            aggregated_indexed_metrics[_id] = {}
+            for metric, values in metric_dict.items():
+                aggregated_indexed_metrics.setdefault(_id, {})[
+                    metric
+                ] = aggregate("mean", values)
+
+        # write results
+        experiment_folder = self._get_experiment_folder(pattern_matching=False)
         results_filename = os.path.join(
-            self._get_experiment_folder(pattern_matching=False),
-            "aggregated_metrics.yml",
+            experiment_folder, "aggregated_metrics.yml"
+        )
+        indexed_results_filename = os.path.join(
+            experiment_folder, "aggregated_indexed_metrics.yml"
         )
 
+        # aggregated results
         if os.path.exists(results_filename):
             with open(results_filename) as fp:
                 results = yaml.safe_load(fp)
         else:
             results = {}
 
-        results[self._description] = aggregated_metrics
+        if aggregated_metrics:
+            results[self._description] = aggregated_metrics
 
-        with open(results_filename, "w") as fp:
-            yaml.dump(results, fp)
+        if results:
+            with open(results_filename, "w") as fp:
+                yaml.dump(results, fp)
+
+        # aggregated indexed results
+        if os.path.exists(indexed_results_filename):
+            with open(indexed_results_filename) as fp:
+                indexed_results = yaml.safe_load(fp)
+        else:
+            indexed_results = {}
+
+        if aggregated_indexed_metrics:
+            indexed_results[self._description] = aggregated_indexed_metrics
+
+        if indexed_results:
+            with open(indexed_results_filename, "w") as fp:
+                yaml.dump(indexed_results, fp)
 
     def plot(
         self,
@@ -858,7 +1026,7 @@ class ExperimentManager(LoggingMixin):
 
         config_directories = self._get_experiment_folder(pattern_matching=True)
 
-        experiments, steps = self._parse_experiments_from_configs(
+        experiments, _, steps = self._parse_experiments_from_configs(
             config_directories
         )
 
