@@ -1,6 +1,7 @@
 import os
 import sys
 import yaml
+import json
 import pickle
 import re
 import pprint
@@ -49,6 +50,7 @@ class ExperimentManager(LoggingMixin):
         _parent_param_dict: name of parent parameter for some parameter
             (if any). If parent param is `None` or `False`, child param's
             value is not considered.
+        _custom_data: custom data to log (keyed by filename).
         _dummy_active: a value of param that is considered active.
         _experiment_folder: actual folder used to log.
         _writer: tensorboard summary writer.
@@ -74,7 +76,7 @@ class ExperimentManager(LoggingMixin):
         experiment_root_directory: str,
         experiment_name: str,
         description: Optional[str] = None,
-        logging_level: int | str = logging.INFO,
+        logging_level: Union[int, str] = logging.INFO,
     ):
         """Init.
 
@@ -122,6 +124,9 @@ class ExperimentManager(LoggingMixin):
         self._metric_step_dict_indexed = {}
         self._best_metric_dict_indexed = {}
         self._test_metric_dict_indexed = {}
+
+        # log custom data
+        self._custom_data = {}
 
         # log time
         self._time_metric_names = ("time", "time_per_sample")
@@ -456,7 +461,7 @@ class ExperimentManager(LoggingMixin):
 
     def set_dict_metrics(
         self,
-        metrics_dict: Dict[str, Any] | Dict[str, Dict[str, Any]],
+        metrics_dict: Union[Dict[str, Any], Dict[str, Dict[str, Any]]],
         test: bool = False,
         step: Optional[int] = None,
     ) -> Dict[str, Any]:
@@ -472,6 +477,48 @@ class ExperimentManager(LoggingMixin):
                 self.set_metric(k, v, test=test, step=step)
 
         return metrics_dict
+
+    def log_custom_data(self, data, basename: Optional[str] = None):
+        """Logs custom data to designated file (assumed yml).
+
+        Args:
+            data: data to log.
+            basename: optional filename to log to.
+
+        Raises:
+            NotImplementedError: if `basename` already exists,
+            and `data` is of type whose update is not implemented.
+
+            AssertionError: if `basename` is not a valid format
+                (judged by extension).
+        """
+
+        if basename is None:
+            basename = "custom_data.yml"
+
+        format = os.path.splitext(basename)[1][1:]
+        assert format in ("yml", "txt", "json", "pkl"), "Invalid format"
+
+        filename = self.get_save_filename(basename=basename)
+
+        if filename in self._custom_data:
+            existing_data = self._custom_data[filename]["data"]
+            if isinstance(existing_data, dict):
+                existing_data.update(data)
+                data = existing_data
+            elif isinstance(existing_data, list):
+                existing_data.extend(data)
+                data = existing_data
+            elif isinstance(existing_data, str):
+                data = existing_data + "\n" + data
+            elif isinstance(existing_data, Number):
+                data = existing_data + data
+            else:
+                raise NotImplementedError(
+                    f"Update to custom data not implemented for type {type(existing_data)}"
+                )
+
+        self._custom_data[filename] = dict(data=data, format=format)
 
     def disable_param(self, name: str):
         """Disables parameter `name` from comparison to other configurations."""
@@ -820,6 +867,24 @@ class ExperimentManager(LoggingMixin):
 
             with open(indexed_metric_filename, "w") as fp:
                 yaml.dump(indexed_experiments, fp)
+
+        for fn, info in self._custom_data.items():
+            exists = os.path.exists(fn)
+            with open(fn, "a") as fp:
+                format = info["format"]
+                data = info["data"]
+                if format == "yml":
+                    yaml.dump(data, fp)
+                elif format == "txt":
+                    if not isinstance(data, str):
+                        data = pprint.pformat(data)
+                        if exists:
+                            data = "\n" + data
+                    fp.write(data)
+                elif format == "json":
+                    json.dump(data, fp)
+                elif format == "pkl":
+                    pickle.dump(data, fp)
 
     def aggregate_results(
         self, aggregation: Union[str, Dict[str, str]] = "mean"
