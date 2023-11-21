@@ -248,6 +248,23 @@ class ExperimentManager(LoggingMixin):
         with open(pkl_filename, "wb") as fp:
             pickle.dump(self, fp)
 
+    def reset(self):
+        """Resets tracked metrics, but otherwise keeps hyperparams the same."""
+        # metrics
+        self._metric_dict = {}
+        self._metric_step_dict = {}
+        self._best_metric_dict = {}
+        self._test_metric_dict = {}
+
+        # indexed metrics
+        self._metric_dict_indexed = {}
+        self._metric_step_dict_indexed = {}
+        self._best_metric_dict_indexed = {}
+        self._test_metric_dict_indexed = {}
+
+        # custom data
+        self._custom_data = {}
+
     def tensorboard_write(
         self, name: str, value: Any, step: Optional[int] = None
     ):
@@ -478,8 +495,8 @@ class ExperimentManager(LoggingMixin):
 
         return metrics_dict
 
-    def log_custom_data(self, data, basename: Optional[str] = None):
-        """Logs custom data to designated file (assumed yml).
+    def set_custom_data(self, data, basename: Optional[str] = None):
+        """Sets custom data to designated file (default yml).
 
         Args:
             data: data to log.
@@ -490,11 +507,12 @@ class ExperimentManager(LoggingMixin):
             and `data` is of type whose update is not implemented.
 
             AssertionError: if `basename` is not a valid format
-                (judged by extension).
+            (judged by extension).
         """
 
         if basename is None:
             basename = "custom_data.yml"
+        basename.replace("yaml", "yml")
 
         format = os.path.splitext(basename)[1][1:]
         assert format in ("yml", "txt", "json", "pkl"), "Invalid format"
@@ -870,21 +888,49 @@ class ExperimentManager(LoggingMixin):
 
         for fn, info in self._custom_data.items():
             exists = os.path.exists(fn)
-            with open(fn, "a") as fp:
-                format = info["format"]
-                data = info["data"]
-                if format == "yml":
-                    yaml.dump(data, fp)
-                elif format == "txt":
+            format = info["format"]
+            data = info["data"]
+            if format in ("yml", "json"):
+                if exists:
+                    with open(fn) as fp:
+                        if format == "yml":
+                            existing_data = yaml.safe_load(fp)
+                        else:
+                            existing_data = json.load(fp)
+
+                    data = {
+                        **existing_data,
+                        f"experiment_{len(existing_data)}": data,
+                    }
+                else:
+                    # create wrapper dictionaries with #experiment in key
+                    data = {f"experiment_0": data}
+
+                with open(fn, "w") as fp:
+                    if format == "yml":
+                        yaml.dump(data, fp)
+                    else:
+                        json.dump(data, fp)
+            elif format == "pkl":
+                if exists:
+                    with open(fn, "rb") as fp:
+                        existing_data = pickle.load(fp)
+                    data = {
+                        **existing_data,
+                        f"experiment_{len(existing_data)}": data,
+                    }
+                else:
+                    data = {f"experiment_0": data}
+
+                with open(fn, "wb") as fp:
+                    pickle.dump(data, fp)
+            else:
+                with open(fn, "a") as fp:
                     if not isinstance(data, str):
                         data = pprint.pformat(data)
                         if exists:
                             data = "\n" + data
                     fp.write(data)
-                elif format == "json":
-                    json.dump(data, fp)
-                elif format == "pkl":
-                    pickle.dump(data, fp)
 
     def aggregate_results(
         self, aggregation: Union[str, Dict[str, str]] = "mean"
