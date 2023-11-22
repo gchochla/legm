@@ -857,7 +857,7 @@ class ExperimentManager(LoggingMixin):
         for _id, value in self._best_metric_dict_indexed.items():
             indexed_experiment[_id].update(value)
         for _id, value in self._test_metric_dict_indexed.items():
-            indexed_experiment[_id].update(value)
+            indexed_experiment.setdefault(_id, {}).update(value)
 
         # write steps
         for metric in self._metric_step_dict:
