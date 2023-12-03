@@ -1,4 +1,5 @@
 import logging
+import warnings
 
 
 class LoggingMixin:
@@ -82,9 +83,13 @@ class LoggingMixin:
             message: message to log.
             level: logging level.
         """
-        if level is None:
-            level = logging.WARNING
-        elif isinstance(level, str):
-            level = getattr(logging, level.upper())
 
-        self._logging_mixin_data["logger"].log(level, message)
+        if "logger" not in self._logging_mixin_data:
+            warnings.warn("No logger has been initialized.")
+        else:
+            if level is None:
+                level = logging.WARNING
+            elif isinstance(level, str):
+                level = getattr(logging, level.upper())
+
+            self._logging_mixin_data["logger"].log(level, message)
