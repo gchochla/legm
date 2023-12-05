@@ -2,6 +2,8 @@ import argparse
 from copy import deepcopy
 from typing import Dict, Any, List
 
+import gridparse
+
 
 def add_arguments(
     parser: argparse.ArgumentParser,
@@ -25,6 +27,8 @@ def add_arguments(
         if k not in exclude:
             v_argparse = deepcopy(v)
             v_argparse.pop("metadata", None)
+            if not isinstance(parser, gridparse.GridArgumentParser):
+                v_argparse.pop("searchable", None)
             parser.add_argument(
                 f"--{k}"
                 if not replace_underscores

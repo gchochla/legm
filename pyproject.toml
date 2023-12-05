@@ -1,6 +1,6 @@
 [project]
 name = "legm"
-version = "1.2.5"
+version = "1.2.6"
 description = "Your general ML experiment manager"
 readme = "README.md"
 requires-python = ">=3.7"
@@ -39,6 +39,7 @@ dependencies = [
   "matplotlib",
   "pyyaml",
   "tensorboard",
+  "gridparse @ git+https://github.com/gchochla/gridparse.git@main",
 ]
 
 [project.optional-dependencies]
