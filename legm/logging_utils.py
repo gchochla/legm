@@ -55,13 +55,16 @@ class LoggingMixin:
         if name is None:
             name = self.__class__.__name__
 
-        self._logging_mixin_data["logger"] = logging.getLogger(name)
+        logger = logging.getLogger(name)
+
+        for handler in logger.handlers:
+            logger.removeHandler(handler)
 
         if logging_level is None:
             logging_level = logging.WARNING
         elif isinstance(logging_level, str):
             logging_level = getattr(logging, logging_level.upper())
-        self._logging_mixin_data["logger"].setLevel(logging_level)
+        logger.setLevel(logging_level)
 
         fh = logging.FileHandler(logging_file)
         fh.setLevel(logging_level)
@@ -70,7 +73,9 @@ class LoggingMixin:
         )
         fh.setFormatter(formatter)
 
-        self._logging_mixin_data["logger"].addHandler(fh)
+        logger.addHandler(fh)
+
+        self._logging_mixin_data["logger"] = logger
 
     def get_logger(self) -> logging.Logger | None:
         """Returns the logger."""
