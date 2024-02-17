@@ -625,7 +625,9 @@ class ExperimentManager(LoggingMixin):
         def format_string(s):
             if isinstance(s, str):
                 return (
-                    s.replace(os.sep, "√").replace(",", ";").replace("=", "≈")
+                    s.replace(os.sep, "--")
+                    .replace(",", "---")
+                    .replace("=", "--eq--")
                 )
             if hasattr(s, "__len__"):
                 return ";".join([format_string(ss) for ss in s])
@@ -804,9 +806,9 @@ class ExperimentManager(LoggingMixin):
             if metric_name not in self._time_metric_names:
                 if step is not None:
                     idx = self._metric_step_dict[metric_name].index(step)
-                self._best_metric_dict[
-                    f"best_{metric_name}"
-                ] = self._metric_dict[metric_name][idx]
+                self._best_metric_dict[f"best_{metric_name}"] = (
+                    self._metric_dict[metric_name][idx]
+                )
 
         for _id in self._metric_dict_indexed:
             for metric_name in self._metric_dict_indexed[_id]:
@@ -879,9 +881,9 @@ class ExperimentManager(LoggingMixin):
         if indexed_experiment:
             indexed_experiment.update({"description": self._description})
 
-            indexed_experiments[
-                f"experiment_{len(indexed_experiments)}"
-            ] = indexed_experiment
+            indexed_experiments[f"experiment_{len(indexed_experiments)}"] = (
+                indexed_experiment
+            )
 
             with open(indexed_metric_filename, "w") as fp:
                 yaml.dump(indexed_experiments, fp)
@@ -1047,9 +1049,9 @@ class ExperimentManager(LoggingMixin):
                     metric[len("best_") :], default_aggregation
                 )
 
-                aggregated_indexed_metrics.setdefault(_id, {})[
-                    metric
-                ] = aggregate(method, values)
+                aggregated_indexed_metrics.setdefault(_id, {})[metric] = (
+                    aggregate(method, values)
+                )
 
         for _id, metric_dict in indexed_test_metrics.items():
             for metric, values in metric_dict.items():
@@ -1057,16 +1059,16 @@ class ExperimentManager(LoggingMixin):
                     metric[len("test_") :], default_aggregation
                 )
 
-                aggregated_indexed_metrics.setdefault(_id, {})[
-                    metric
-                ] = aggregate(method, values)
+                aggregated_indexed_metrics.setdefault(_id, {})[metric] = (
+                    aggregate(method, values)
+                )
 
         for _id, metric_dict in indexed_time_metrics.items():
             aggregated_indexed_metrics[_id] = {}
             for metric, values in metric_dict.items():
-                aggregated_indexed_metrics.setdefault(_id, {})[
-                    metric
-                ] = aggregate("mean", values)
+                aggregated_indexed_metrics.setdefault(_id, {})[metric] = (
+                    aggregate("mean", values)
+                )
 
         # write results
         experiment_folder = self._get_experiment_folder(pattern_matching=False)
