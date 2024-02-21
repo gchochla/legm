@@ -30,9 +30,11 @@ def add_arguments(
             if not isinstance(parser, gridparse.GridArgumentParser):
                 v_argparse.pop("searchable", None)
             parser.add_argument(
-                f"--{k}"
-                if not replace_underscores
-                else f"--{k.replace('_', '-')}",
+                (
+                    f"--{k}"
+                    if not replace_underscores
+                    else f"--{k.replace('_', '-')}"
+                ),
                 **v_argparse,
             )
 
@@ -55,5 +57,14 @@ def add_metadata(
     for k, v in arguments.items():
         if k not in exclude:
             param_metadata = v.get("metadata", None)
+            has_splits = bool(v.get("splits", []))
             if param_metadata:
-                metadata[k] = param_metadata
+                if not has_splits:
+                    metadata[k] = param_metadata
+                else:
+                    for split in v["splits"]:
+                        metadata[
+                            gridparse.GridArgumentParser._add_split_in_arg(
+                                k, split
+                            )
+                        ] = param_metadata
