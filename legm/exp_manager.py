@@ -144,9 +144,11 @@ class ExperimentManager(LoggingMixin):
 
     def __getattr__(self, name):
 
-        if name == "experiment_name":
+        if name == "_experiment_category":
+            # only reach this point for previous versions of the code
+            # that used `_experiment_name` instead of `_experiment_category`
             warnings.warn("`_experiment_name` is deprecated.")
-            return self._experiment_category
+            return self._experiment_name
 
         try:
             return self._param_dict[name]
@@ -252,7 +254,7 @@ class ExperimentManager(LoggingMixin):
         name_filename = os.path.join(self._experiment_folder, "names.txt")
         with open(name_filename, "w") as fp:
             fp.write(
-                f"{self._experiment_name()}:\n"
+                f"{self._experiment_param_name()}:\n"
                 + "\n".join(sorted(self._name_params))
             )
 
@@ -638,7 +640,7 @@ class ExperimentManager(LoggingMixin):
         )
         return model_filename
 
-    def _experiment_name(self) -> str:
+    def _experiment_param_name(self) -> str:
         """Returns name of experiment based on name parameters."""
 
         def format_string(s):
@@ -724,7 +726,7 @@ class ExperimentManager(LoggingMixin):
             else:
                 exact_match_subfolder = os.path.join(
                     experiment_subfolder,
-                    self._experiment_name() + "_0",
+                    self._experiment_param_name() + "_0",
                 )
                 while os.path.exists(exact_match_subfolder):
                     split_name = exact_match_subfolder.split("_")
