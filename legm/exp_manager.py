@@ -8,6 +8,7 @@ import pprint
 import logging
 import shutil
 import warnings
+from string import Template
 from copy import deepcopy
 from numbers import Number
 from types import SimpleNamespace
@@ -661,6 +662,11 @@ class ExperimentManager(LoggingMixin):
             ]
         )
 
+    def _format_experiment_name(self, name: str) -> str:
+        for param in self._param_dict:
+            name = name.replace("{" + param + "}", str(self._param_dict[param]))
+        return name
+
     def _get_experiment_folder(
         self, pattern_matching: bool = False, use_alternative: bool = True
     ) -> Union[str, List[str]]:
@@ -736,8 +742,10 @@ class ExperimentManager(LoggingMixin):
                     )
 
         if self._alternative_experiment_name:
-            alternative_subfolder = os.path.join(
-                experiment_subfolder, self._alternative_experiment_name
+            alternative_subfolder = self._format_experiment_name(
+                os.path.join(
+                    experiment_subfolder, self._alternative_experiment_name
+                )
             )
 
         # if experiment doesn't exist, create it
