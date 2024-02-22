@@ -306,8 +306,12 @@ class ExperimentManager(LoggingMixin):
             active_value: optional value of parent variable when active
                 or function of parent value returning True when active.
         """
-        assert parent in self._param_dict
-        assert child in self._param_dict
+        assert (
+            parent in self._param_dict
+        ), f"{parent} not in parameters of ExperimentManager"
+        assert (
+            child in self._param_dict
+        ), f"{child} not in parameters of ExperimentManager"
 
         self._parent_param_dict[child] = parent
         self._parent_param_value_dict[child][parent] = active_value
@@ -335,7 +339,9 @@ class ExperimentManager(LoggingMixin):
 
         self._param_dict[name] = value
         if parent is not None:
-            assert parent in self._param_dict
+            assert (
+                parent in self._param_dict
+            ), f"{parent} not in parameters of ExperimentManager"
             self.set_parent(name, parent)
         return value
 
@@ -557,7 +563,11 @@ class ExperimentManager(LoggingMixin):
 
     def disable_param(self, name: str):
         """Disables parameter `name` from comparison to other configurations."""
-        assert name in self._param_dict
+        if name in self.__dict__ or name in self.argparse_args():
+            return
+        assert (
+            name in self._param_dict
+        ), f"{name} not in parameters of ExperimentManager"
         self._disabled_params.add(name)
 
     def disable_params(self, names: List[str]):
@@ -568,7 +578,9 @@ class ExperimentManager(LoggingMixin):
 
     def name_param(self, name: str):
         """Sets parameter `name` from usage in naming of experiment."""
-        assert name in self._param_dict
+        assert (
+            name in self._param_dict
+        ), f"{name} not in parameters of ExperimentManager"
         self._name_params.add(name)
 
     def name_params(self, names: List[str]):
@@ -761,7 +773,10 @@ class ExperimentManager(LoggingMixin):
             )
             step_filename = os.path.join(config_directory, "steps.yml")
 
-            assert os.path.exists(step_filename)
+            assert os.path.exists(step_filename), (
+                f"{step_filename} does not exist. "
+                "Please run `log_metrics` before `_parse_experiments_from_configs`."
+            )
 
             if os.path.exists(metrics_filename):
                 with open(metrics_filename) as fp:
