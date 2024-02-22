@@ -6,6 +6,7 @@ import pickle
 import re
 import pprint
 import logging
+import shutil
 from copy import deepcopy
 from numbers import Number
 from types import SimpleNamespace
@@ -26,11 +27,13 @@ class ExperimentManager(LoggingMixin):
 
     Attributes:
         _directory: main experiment directory.
-        _experiment_name: specific experiment being ran
+        _experiment_category: specific experiment being ran
             (also name of experiment subfolder).
         _description: optional information to differentiate experiment
             with others that use the same hyperparams (e.g. for internal
             code change).
+        _alternative_experiment_name: optional alternative name for
+            experiment subfolder.
         _param_dict: name and value of parameters.
         _disabled_params: which params to not consider for comparison, etc.
         _name_params: which params, if any, to use to name the experiment.
@@ -61,12 +64,15 @@ class ExperimentManager(LoggingMixin):
 
     @staticmethod
     def argparse_args():
-        return dict(
-            logging_level=dict(
+        return LoggingMixin.argparse_args() | dict(
+            description=dict(
                 type=str,
-                default="info",
-                choices=["info", "debug", "warning", "error"],
-                help="logging level",
+                help="description of experiment",
+                metadata=dict(disable_comparison=True),
+            ),
+            alternative_experiment_name=dict(
+                type=str,
+                help="alternative name for experiment subfolder",
                 metadata=dict(disable_comparison=True),
             ),
         )
@@ -74,7 +80,8 @@ class ExperimentManager(LoggingMixin):
     def __init__(
         self,
         experiment_root_directory: str,
-        experiment_name: str,
+        experiment_category: str,
+        alternative_experiment_name: Optional[str] = None,
         description: Optional[str] = None,
         logging_level: Union[int, str] = logging.INFO,
     ):
@@ -82,8 +89,10 @@ class ExperimentManager(LoggingMixin):
 
         Args:
             experiment_root_directory: main experiment directory.
-            experiment_name: specific experiment being ran
+            experiment_category: specific category of experiment being ran
                 (also name of experiment subfolder).
+            alternative_experiment_name: optional alternative name for
+                experiment subfolder.
             description: optional information to differentiate
                 experiment with others that use the same hyperparams
                 (e.g. for internal code change).
@@ -93,8 +102,9 @@ class ExperimentManager(LoggingMixin):
 
         # basics
         self._directory = experiment_root_directory
-        self._experiment_name = experiment_name
-        self._description = description if description is not None else ""
+        self._experiment_category = experiment_category
+        self._alternative_experiment_name = alternative_experiment_name
+        self._description = description or ""
         self._experiment_folder = None
         self._writer = None
 
@@ -162,7 +172,7 @@ class ExperimentManager(LoggingMixin):
     _dummy_active = True
 
     def __eq__(self, __o: object) -> bool:
-        """Checks if `_experiment_name` and active params are the same."""
+        """Checks if `_experiment_category` and active params are the same."""
 
         def comp(eh1: ExperimentHandler, eh2: ExperimentHandler) -> bool:
             """See if active params in `eh1` are equal to the
@@ -188,7 +198,7 @@ class ExperimentManager(LoggingMixin):
         if not isinstance(__o, ExperimentHandler):
             return False
 
-        if self._experiment_name != __o._experiment_name:
+        if self._experiment_category != __o._experiment_category:
             return False
 
         if not (comp(self, __o) and comp(__o, self)):
@@ -235,7 +245,10 @@ class ExperimentManager(LoggingMixin):
 
         name_filename = os.path.join(self._experiment_folder, "names.txt")
         with open(name_filename, "w") as fp:
-            fp.write("\n".join(sorted(self._name_params)))
+            fp.write(
+                f"{self._experiment_name()}:\n"
+                + "\n".join(sorted(self._name_params))
+            )
 
         self.logging_file = os.path.join(self._experiment_folder, "log.txt")
         open(self.logging_file, "a").close()  # touch file
@@ -315,6 +328,10 @@ class ExperimentManager(LoggingMixin):
         Returns:
             The value of the parameter.
         """
+
+        # avoid setting existing params in _param_dict
+        if name in self.__dict__ or name in self.argparse_args():
+            return value
 
         self._param_dict[name] = value
         if parent is not None:
@@ -603,8 +620,29 @@ class ExperimentManager(LoggingMixin):
         )
         return model_filename
 
+    def _experiment_name(self) -> str:
+        """Returns name of experiment based on name parameters."""
+
+        def format_string(s):
+            if isinstance(s, str):
+                return (
+                    s.replace(os.sep, "--")
+                    .replace(",", "---")
+                    .replace("=", "--eq--")
+                )
+            if hasattr(s, "__len__"):
+                return "+".join([format_string(ss) for ss in s])
+            return str(s)
+
+        return ",".join(
+            [
+                format_string(self._param_dict[param])
+                for param in sorted(self._name_params)
+            ]
+        )
+
     def _get_experiment_folder(
-        self, pattern_matching: bool = False
+        self, pattern_matching: bool = False, use_alternative: bool = True
     ) -> Union[str, List[str]]:
         """Returns name of directory of experiment (and creates it if
         it doesn't exist).
@@ -622,17 +660,6 @@ class ExperimentManager(LoggingMixin):
         if self._experiment_folder is not None and not pattern_matching:
             return self._experiment_folder
 
-        def format_string(s):
-            if isinstance(s, str):
-                return (
-                    s.replace(os.sep, "--")
-                    .replace(",", "---")
-                    .replace("=", "--eq--")
-                )
-            if hasattr(s, "__len__"):
-                return ";".join([format_string(ss) for ss in s])
-            return str(s)
-
         def strict__eq__(eh1: ExperimentHandler, eh2: ExperimentHandler):
             def sorted_dict(d):
                 if not isinstance(d, dict):
@@ -645,7 +672,7 @@ class ExperimentManager(LoggingMixin):
 
         # setup general subfolder
         experiment_subfolder = os.path.join(
-            self._directory, self._experiment_name
+            self._directory, self._experiment_category
         )
         if not os.path.exists(experiment_subfolder):
             os.makedirs(experiment_subfolder)
@@ -679,13 +706,7 @@ class ExperimentManager(LoggingMixin):
             else:
                 exact_match_subfolder = os.path.join(
                     experiment_subfolder,
-                    ",".join(
-                        [
-                            format_string(self._param_dict[param])
-                            for param in sorted(self._name_params)
-                        ]
-                    )
-                    + "_0",
+                    self._experiment_name() + "_0",
                 )
                 while os.path.exists(exact_match_subfolder):
                     split_name = exact_match_subfolder.split("_")
@@ -694,8 +715,22 @@ class ExperimentManager(LoggingMixin):
                         "_".join(name) + "_" + str(int(index) + 1)
                     )
 
+        if self._alternative_experiment_name:
+            alternative_subfolder = os.path.join(
+                experiment_subfolder, self._alternative_experiment_name
+            )
+
+        # if experiment doesn't exist, create it
         if not os.path.exists(exact_match_subfolder):
+            if self._alternative_experiment_name:
+                # if alternative is provided, create that one
+                exact_match_subfolder = alternative_subfolder
             os.makedirs(exact_match_subfolder)
+        # if experiment exists and alternative name is provided
+        # move it to potential alternative subfolder
+        elif self._alternative_experiment_name:
+            shutil.move(exact_match_subfolder, alternative_subfolder)
+            exact_match_subfolder = alternative_subfolder
 
         return (
             [exact_match_subfolder] + config_subfolders
@@ -1331,13 +1366,13 @@ class ExperimentManager(LoggingMixin):
 
         cfg_metrics = {}
         for subfolder in os.listdir(
-            os.path.join(self._directory, self._experiment_name)
+            os.path.join(self._directory, self._experiment_category)
         ):
             try:
                 with open(
                     os.path.join(
                         self._directory,
-                        self._experiment_name,
+                        self._experiment_category,
                         subfolder,
                         "aggregated_metrics.yml",
                     )
@@ -1349,7 +1384,7 @@ class ExperimentManager(LoggingMixin):
                 with open(
                     os.path.join(
                         self._directory,
-                        self._experiment_name,
+                        self._experiment_category,
                         subfolder,
                         "params.yml",
                     )
@@ -1444,13 +1479,13 @@ class ExperimentManager(LoggingMixin):
         if x_values is None:
             x_values = []
             for subfolder in os.listdir(
-                os.path.join(self._directory, self._experiment_name)
+                os.path.join(self._directory, self._experiment_category)
             ):
                 try:
                     with open(
                         os.path.join(
                             self._directory,
-                            self._experiment_name,
+                            self._experiment_category,
                             subfolder,
                             "params.yml",
                         )

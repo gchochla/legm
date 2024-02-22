@@ -12,6 +12,18 @@ class LoggingMixin:
         _logging_mixin_data: dict for the logging mixin.
     """
 
+    @staticmethod
+    def argparse_args():
+        return dict(
+            logging_level=dict(
+                type=str,
+                default="info",
+                choices=["info", "debug", "warning", "error"],
+                help="logging level",
+                metadata=dict(disable_comparison=True),
+            )
+        )
+
     def __init__(
         self,
         logger: logging.Logger | None = None,
