@@ -4,7 +4,7 @@ Overall, the `legm.ExperimentManager`, at its current state, is supposed to hold
 
 ## Initialization
 
-To initialize, provide the general experiments folder (the `.gitignore` here ignores `experiment_logs` for example), then the specific kind of experiment being run (for example, "LeNet@MNIST"). You can also provide a description for the experiment. This will differentiate the experiment from experiments with the same hyperparameters, which enables you, for instance, to make temporary changes in the code and have those reflected as different experiments.
+To initialize, provide the general experiments folder (the `.gitignore` here ignores `logs` for example), then the specific kind of experiment being run (for example, "LeNet@MNIST"). You can also provide a description for the experiment. This will differentiate the experiment from experiments with the same hyperparameters, which enables you, for instance, to make temporary changes in the code and have those reflected as different experiments. The name of the specific experiment folder is derived from the parameters designated for the name, which can be done with `.name_param(param)`, or with the `name` property of metadata (See [here](./metadata.md)). You can also specify a name for the experiment subfolder with `alternative_experiment_name`, which can be a template to be filled in with the values of the provided parameters.
 
 ## Registering Hyperparameters
 
@@ -24,7 +24,7 @@ exp_manager.set_param("learning_rate", 1e-2)
 exp_manager.learning_rate
 ```
 
-To begin logging, we have to use `.start()`. During training, you can register metrics with similar mechanisms to hyperparameters. The simplest method is `set_metric(metric_name: str, metric_value: float, test_or_dev: bool, step: int)`. However, we recommend `set_dict_metrics(metric_dict: dict[str, float], test_or_dev: bool, step: int)`. Additionally, if your metrics are further indexed by some other key (e.g., if you want to log metrics for each example separately), you can provide the metrics within another dictionary, whose keys are the additional index: `set_dict_metrics(indexed_metric_dict: dict[str, dict[str, float]], ...)`. At the end of training, you can use `.set_best()` to denote which step was the best (e.g., derived from early stopping). Otherwise, the last step is picked. 
+To begin logging, we have to use `.start()`. During training, you can register metrics with similar mechanisms to hyperparameters. The simplest method is `set_metric(metric_name: str, metric_value: float, test_or_dev: bool, step: int)`. However, we recommend `set_dict_metrics(metric_dict: dict[str, float], test_or_dev: bool, step: int)`. Additionally, if your metrics are further indexed by some other key (e.g., if you want to log metrics for each example separately), you can provide the metrics within another dictionary, whose keys are the additional index: `set_dict_metrics(indexed_metric_dict: dict[str, dict[str, float]], ...)`. At the end of training, you can use `.set_best()` to denote which step was the best (e.g., derived from early stopping). Otherwise, the last step is picked.
 
 ## Log
 
