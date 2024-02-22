@@ -29,6 +29,7 @@ def add_arguments(
             v_argparse.pop("metadata", None)
             if not isinstance(parser, gridparse.GridArgumentParser):
                 v_argparse.pop("searchable", None)
+                v_argparse.pop("splits", None)
             parser.add_argument(
                 (
                     f"--{k}"
