@@ -122,6 +122,8 @@ class ExperimentManager(LoggingMixin):
         self._param_dict = {}
         self._disabled_params = set()
         self._name_params = set()
+        # if name is transformed, keep correspondence to original name
+        self._name_param_correspondence = {}
         self._parent_param_dict = {}
         self._parent_param_value_dict = defaultdict(dict)
 
@@ -423,6 +425,7 @@ class ExperimentManager(LoggingMixin):
                     use_in_name = use_in_name(getattr(arg_params, param))
 
                 param_use_name[param] = use_in_name
+                original_param = param
 
                 if use_in_name:
                     name_transform = metadata.get("name_transform", None)
@@ -447,6 +450,7 @@ class ExperimentManager(LoggingMixin):
                         self.disable_param(param)
 
                     self.name_param(param)
+                    self._name_param_correspondence[original_param] = param
 
     def set_dict_params(
         self, dict_params: Dict[str, Any], parent: Optional[str] = None
@@ -641,34 +645,42 @@ class ExperimentManager(LoggingMixin):
         )
         return model_filename
 
+    @staticmethod
+    def __format_string(s):
+        if isinstance(s, str):
+            return (
+                s.replace(os.sep, "--")
+                .replace(",", "---")
+                .replace("=", "--eq--")
+            )
+        if hasattr(s, "__len__"):
+            return "+".join([ExperimentManager.__format_string(ss) for ss in s])
+        return str(s)
+
     def _experiment_param_name(self) -> str:
         """Returns name of experiment based on name parameters."""
 
-        def format_string(s):
-            if isinstance(s, str):
-                return (
-                    s.replace(os.sep, "--")
-                    .replace(",", "---")
-                    .replace("=", "--eq--")
-                )
-            if hasattr(s, "__len__"):
-                return "+".join([format_string(ss) for ss in s])
-            return str(s)
-
         return ",".join(
             [
-                format_string(self._param_dict[param])
+                self.__format_string(self._param_dict[param])
                 for param in sorted(self._name_params)
             ]
         )
 
     def _format_experiment_name(self, name: str) -> str:
         for param in self._param_dict:
-            name = name.replace("{" + param + "}", str(self._param_dict[param]))
+
+            value = self._param_dict[
+                self._name_param_correspondence.get(param, param)
+            ]
+
+            name = name.replace(
+                "{" + param + "}", self.__format_string(str(value))
+            )
         return name
 
     def _get_experiment_folder(
-        self, pattern_matching: bool = False, use_alternative: bool = True
+        self, pattern_matching: bool = False
     ) -> Union[str, List[str]]:
         """Returns name of directory of experiment (and creates it if
         it doesn't exist).
