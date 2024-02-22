@@ -7,6 +7,7 @@ import re
 import pprint
 import logging
 import shutil
+import warnings
 from copy import deepcopy
 from numbers import Number
 from types import SimpleNamespace
@@ -142,6 +143,11 @@ class ExperimentManager(LoggingMixin):
         self._time_metric_names = ("time", "time_per_sample")
 
     def __getattr__(self, name):
+
+        if name == "experiment_name":
+            warnings.warn("`_experiment_name` is deprecated.")
+            return self._experiment_category
+
         try:
             return self._param_dict[name]
         except KeyError:
