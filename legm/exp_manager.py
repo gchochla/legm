@@ -800,7 +800,10 @@ class ExperimentManager(LoggingMixin):
                 )
                 + "_0"
             )
-            while os.path.exists(alternative_subfolder):
+            while (
+                os.path.exists(alternative_subfolder)
+                and alternative_subfolder != exact_match_subfolder
+            ):
                 split_name = alternative_subfolder.split("_")
                 name, index = split_name[:-1], split_name[-1]
                 alternative_subfolder = (
