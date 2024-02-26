@@ -8,7 +8,6 @@ import pprint
 import logging
 import shutil
 import warnings
-from string import Template
 from copy import deepcopy
 from numbers import Number
 from types import SimpleNamespace
@@ -250,9 +249,49 @@ class ExperimentManager(LoggingMixin):
             os.path.join(self._experiment_folder, "tensorboard")
         )
 
+        # TODO: if run fails, then results are not logged but params are
+        # What happens first time in old folder?
         yml_filename = os.path.join(self._experiment_folder, "params.yml")
+        # if params exist, load and augment
+        if os.path.exists(yml_filename):
+            with open(yml_filename) as fp:
+                params = yaml.safe_load(fp)
+
+            yml_metrics_filename = os.path.join(
+                self._experiment_folder, "metrics.yml"
+            )
+
+            # for backwards compatibility
+            if not next(iter(params)).startswith("experiment_"):
+                if os.path.exists(yml_metrics_filename):
+                    # if metrics exist, duplicate existing params for each previous experiment
+                    with open(yml_metrics_filename) as fp:
+                        metrics = yaml.safe_load(fp)
+                else:
+                    # failed experiment, so start from scratch
+                    metrics = {}
+
+                params = {
+                    f"experiment_{i}": params for i in range(len(metrics))
+                }
+
+            # if params were logged without metrics, then remove last params
+            if os.path.exists(yml_metrics_filename):
+                with open(yml_metrics_filename) as fp:
+                    metrics = yaml.safe_load(fp)
+
+                if len(params) > len(metrics):
+                    params.pop(f"experiment_{len(params)-1}")
+
+            else:
+                params = {}
+
+            params[f"experiment_{len(params)}"] = self._param_dict
+        else:
+            params = {"experiment_0": self._param_dict}
+
         with open(yml_filename, "w") as fp:
-            yaml.dump(self._param_dict, fp)
+            yaml.dump(params, fp)
 
         name_filename = os.path.join(self._experiment_folder, "names.txt")
         with open(name_filename, "w") as fp:
