@@ -272,7 +272,8 @@ class ExperimentManager(LoggingMixin):
                     metrics = {}
 
                 params = {
-                    f"experiment_{i}": params for i in range(len(metrics))
+                    f"experiment_{i}": deepcopy(params)
+                    for i in range(len(metrics))
                 }
 
             # if params were logged without metrics, then remove last params
