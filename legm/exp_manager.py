@@ -797,7 +797,14 @@ class ExperimentManager(LoggingMixin):
                 os.path.join(
                     experiment_subfolder, self._alternative_experiment_name
                 )
+                + "_0"
             )
+            while os.path.exists(alternative_subfolder):
+                split_name = alternative_subfolder.split("_")
+                name, index = split_name[:-1], split_name[-1]
+                alternative_subfolder = (
+                    "_".join(name) + "_" + str(int(index) + 1)
+                )
 
         # if experiment doesn't exist, create it
         if not os.path.exists(exact_match_subfolder):
@@ -805,6 +812,7 @@ class ExperimentManager(LoggingMixin):
                 # if alternative is provided, create that one
                 exact_match_subfolder = alternative_subfolder
             os.makedirs(exact_match_subfolder)
+
         # if experiment exists and alternative name is provided
         # move it to potential alternative subfolder
         elif self._alternative_experiment_name:
