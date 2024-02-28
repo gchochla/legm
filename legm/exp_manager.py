@@ -735,7 +735,12 @@ class ExperimentManager(LoggingMixin):
             equivalent folder names (based on parent variable values).
         """
 
-        if self._experiment_folder is not None and not pattern_matching:
+        if (
+            self._experiment_folder is not None
+            # check whether the folder was moved during the experiment
+            and os.path.exists(self._experiment_folder)
+            and not pattern_matching
+        ):
             return self._experiment_folder
 
         def strict__eq__(eh1: ExperimentHandler, eh2: ExperimentHandler):
@@ -798,17 +803,18 @@ class ExperimentManager(LoggingMixin):
                 os.path.join(
                     experiment_subfolder, self._alternative_experiment_name
                 )
-                + "_0"
             )
-            while (
-                os.path.exists(alternative_subfolder)
-                and alternative_subfolder != exact_match_subfolder
-            ):
-                split_name = alternative_subfolder.split("_")
-                name, index = split_name[:-1], split_name[-1]
-                alternative_subfolder = (
-                    "_".join(name) + "_" + str(int(index) + 1)
-                )
+            # if exact match is a subfolder of alternative_#, use that
+            if exact_match_subfolder.startswith(alternative_subfolder):
+                alternative_subfolder = exact_match_subfolder
+            else:
+                alternative_subfolder = alternative_subfolder + "_0"
+                while os.path.exists(alternative_subfolder):
+                    split_name = alternative_subfolder.split("_")
+                    name, index = split_name[:-1], split_name[-1]
+                    alternative_subfolder = (
+                        "_".join(name) + "_" + str(int(index) + 1)
+                    )
 
         # if experiment doesn't exist, create it
         if not os.path.exists(exact_match_subfolder):
@@ -822,6 +828,11 @@ class ExperimentManager(LoggingMixin):
         elif self._alternative_experiment_name:
             shutil.move(exact_match_subfolder, alternative_subfolder)
             exact_match_subfolder = alternative_subfolder
+
+        if self._experiment_folder is not None and not os.path.exists(
+            self._experiment_folder
+        ):
+            self._experiment_folder = exact_match_subfolder
 
         return (
             [exact_match_subfolder] + config_subfolders
