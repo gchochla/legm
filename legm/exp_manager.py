@@ -591,7 +591,7 @@ class ExperimentManager(LoggingMixin):
         basename.replace("yaml", "yml")
 
         format = os.path.splitext(basename)[1][1:]
-        assert format in ("yml", "txt", "json", "pkl"), "Invalid format"
+        assert format in ("yml", "txt", "json", "pkl"), "Invalid file format"
 
         filename = self.get_save_filename(basename=basename)
 
@@ -855,6 +855,7 @@ class ExperimentManager(LoggingMixin):
 
         experiments = {}
         indexed_experiments = {}
+        custom_experiments = {}
         steps = {}
         for config_directory in config_directories:
             metrics_filename = os.path.join(config_directory, "metrics.yml")
@@ -908,7 +909,31 @@ class ExperimentManager(LoggingMixin):
                 }
             )
 
-        return experiments, indexed_experiments, steps
+        for fn, info in self._custom_data.items():
+            format = info["format"]
+            key = os.path.basename(fn)
+            fn = os.path.join(config_directory, key)
+            if os.path.exists(fn):
+                if format == "yml":
+                    with open(fn) as fp:
+                        custom_data = yaml.safe_load(fp)
+                elif format == "json":
+                    with open(fn) as fp:
+                        custom_data = json.load(fp)
+                elif format == "pkl":
+                    with open(fn, "rb") as fp:
+                        custom_data = pickle.load(fp)
+
+                custom_experiments.setdefault(key, {}).update(
+                    {
+                        f"experiment_{len(custom_experiments.setdefault(key, {}))+i}": custom_data[
+                            f"experiment_{i}"
+                        ]
+                        for i in range(len(custom_data))
+                    }
+                )
+
+        return experiments, indexed_experiments, custom_experiments, steps
 
     def set_best(self, method: str, **kwargs):
         """Sets `best_metric_dict` based on lists in `metric_dict`.
@@ -1032,6 +1057,7 @@ class ExperimentManager(LoggingMixin):
             exists = os.path.exists(fn)
             format = info["format"]
             data = info["data"]
+            data["description"] = self._description
             if format in ("yml", "json"):
                 if exists:
                     with open(fn) as fp:
@@ -1117,12 +1143,13 @@ class ExperimentManager(LoggingMixin):
         (
             experiments,
             indexed_experiments,
+            custom_experiments,
             _,
         ) = self._parse_experiments_from_configs(config_directories)
 
-        best_metrics = {}
-        test_metrics = {}
-        time_metrics = {}
+        best_metrics = defaultdict(list)
+        test_metrics = defaultdict(list)
+        time_metrics = defaultdict(list)
 
         # collect metrics
         for experiment in experiments.values():
@@ -1130,12 +1157,12 @@ class ExperimentManager(LoggingMixin):
                 continue
             for metric, value in experiment.items():
                 if metric.startswith("best_") and not isinstance(value, list):
-                    best_metrics.setdefault(metric, []).append(value)
+                    best_metrics[metric].append(value)
 
                 elif metric.startswith("test_") and not isinstance(value, list):
-                    test_metrics.setdefault(metric, []).append(value)
+                    test_metrics[metric].append(value)
                 elif metric in self._time_metric_names:
-                    time_metrics.setdefault(metric, []).extend(value)
+                    time_metrics[metric].extend(value)
 
         indexed_best_metrics = defaultdict(dict)
         indexed_test_metrics = defaultdict(dict)
@@ -1162,6 +1189,25 @@ class ExperimentManager(LoggingMixin):
                         indexed_time_metrics[_id].setdefault(metric, []).extend(
                             value
                         )
+
+        # collect custom metrics
+        custom_metrics = defaultdict(dict)
+        for key, experiments in custom_experiments.items():
+            try:
+                for experiment in experiments.values():
+                    if (
+                        experiment.pop("description", self._description)
+                        != self._description
+                    ):
+                        continue
+
+                    for _id, metric_dict in experiment.items():
+                        for metric, value in metric_dict.items():
+                            custom_metrics[key].setdefault(_id, {}).setdefault(
+                                metric, []
+                            ).append(value)
+            except Exception:
+                ...
 
         # aggregate metrics
         aggregated_metrics = {}
@@ -1210,6 +1256,17 @@ class ExperimentManager(LoggingMixin):
                     aggregate("mean", values)
                 )
 
+        # aggregate custom metrics
+        aggregated_custom_metrics = {}
+        for key, experiments in custom_metrics.items():
+            for _id, metric_dict in experiments.items():
+                for metric, values in metric_dict.items():
+                    method = aggregation.get(metric, default_aggregation)
+
+                    aggregated_custom_metrics.setdefault(key, {}).setdefault(
+                        _id, {}
+                    )[metric] = aggregate(method, values)
+
         # write results
         experiment_folder = self._get_experiment_folder(pattern_matching=False)
         results_filename = os.path.join(
@@ -1247,6 +1304,26 @@ class ExperimentManager(LoggingMixin):
             with open(indexed_results_filename, "w") as fp:
                 yaml.dump(indexed_results, fp)
 
+        # aggregated custom results
+        for key, aggregated_key_metrics in aggregated_custom_metrics.items():
+            key = os.path.splitext(key)[0]
+            custom_results_filename = os.path.join(
+                experiment_folder, f"aggregated_{key}.yml"
+            )
+
+            if os.path.exists(custom_results_filename):
+                with open(custom_results_filename) as fp:
+                    custom_results = yaml.safe_load(fp)
+            else:
+                custom_results = {}
+
+            if aggregated_key_metrics:
+                custom_results[self._description] = aggregated_key_metrics
+
+            if custom_results:
+                with open(custom_results_filename, "w") as fp:
+                    yaml.dump(custom_results, fp)
+
     def plot(
         self,
         aggregation: Union[str, Dict[str, str]] = "mean",
@@ -1277,7 +1354,7 @@ class ExperimentManager(LoggingMixin):
 
         config_directories = self._get_experiment_folder(pattern_matching=True)
 
-        experiments, _, steps = self._parse_experiments_from_configs(
+        experiments, *_, steps = self._parse_experiments_from_configs(
             config_directories
         )
 
