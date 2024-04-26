@@ -1261,11 +1261,17 @@ class ExperimentManager(LoggingMixin):
         for key, experiments in custom_metrics.items():
             for _id, metric_dict in experiments.items():
                 for metric, values in metric_dict.items():
-                    method = aggregation.get(metric, default_aggregation)
+                    try:
+                        method = aggregation.get(metric, default_aggregation)
 
-                    aggregated_custom_metrics.setdefault(key, {}).setdefault(
-                        _id, {}
-                    )[metric] = aggregate(method, values)
+                        aggregated_custom_metrics.setdefault(
+                            key, {}
+                        ).setdefault(_id, {})[metric] = aggregate(
+                            method, values
+                        )
+                    except Exception:
+                        # because it's custom data, we let everything that doesn't work go
+                        ...
 
         # write results
         experiment_folder = self._get_experiment_folder(pattern_matching=False)
