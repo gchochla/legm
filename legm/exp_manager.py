@@ -65,7 +65,9 @@ class ExperimentManager(LoggingMixin):
 
     @staticmethod
     def argparse_args():
-        return LoggingMixin.argparse_args() | dict(
+        args =  LoggingMixin.argparse_args()
+        args.update(
+            dict(
             description=dict(
                 type=str,
                 help="description of experiment",
@@ -76,7 +78,15 @@ class ExperimentManager(LoggingMixin):
                 help="alternative name for experiment subfolder",
                 metadata=dict(disable_comparison=True),
             ),
-        )
+            logs_precision=dict(
+                type=int,
+                help="precision of logs (number of decimal places); "
+                "default (None) is no rounding",
+                default=None,
+                metadata=dict(disable_comparison=True),
+            ),
+        ))
+        return args
 
     def __init__(
         self,
@@ -85,6 +95,7 @@ class ExperimentManager(LoggingMixin):
         alternative_experiment_name: Optional[str] = None,
         description: Optional[str] = None,
         logging_level: Union[int, str] = logging.INFO,
+        logs_precision: Optional[int] = None,
     ):
         """Init.
 
@@ -97,9 +108,14 @@ class ExperimentManager(LoggingMixin):
             description: optional information to differentiate
                 experiment with others that use the same hyperparams
                 (e.g. for internal code change).
+            logging_level: logging level.
+            logs_precision: precision of logs (number of decimal places);
+                default (None) is no rounding.
         """
 
         super().__init__()
+
+        self.logs_precision = logs_precision
 
         # basics
         self._directory = experiment_root_directory
@@ -529,6 +545,9 @@ class ExperimentManager(LoggingMixin):
             value = int(value)
         elif isinstance(value, Number):
             value = float(value)
+
+        if isinstance(value, float) and self.logs_precision is not None:
+            value = round(value, self.logs_precision)
 
         if not test:
             if name.startswith("best_"):
@@ -1115,12 +1134,14 @@ class ExperimentManager(LoggingMixin):
         """
 
         def aggregate(method, values):
+            precision = self.logs_precision or 4
             if method == "mean":
                 aggregated_value = (
-                    f"{np.mean(values):.4f}+-{np.std(values):.4f}"
+                    f"{round(np.mean(values), precision)}+-"
+                    f"{round(np.std(values), precision)}"
                 )
             elif method == "median":
-                aggregated_value = f"{np.median(values):.4f}"
+                aggregated_value = f"{round(np.median(values), precision)}"
             elif method == "outlier_mean":
                 # preferably removes from best results
                 n_outliers = 2 * len(values) // 10
@@ -1128,7 +1149,8 @@ class ExperimentManager(LoggingMixin):
                     n_outliers // 2 : len(values) - (n_outliers + 1) // 2
                 ]
                 aggregated_value = (
-                    f"{np.mean(values):.4f}+-{np.std(values):.4f}"
+                    f"{round(np.mean(values), precision)}+-"
+                    f"{round(np.std(values), precision)}"
                 )
 
             return aggregated_value

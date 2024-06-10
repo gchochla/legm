@@ -1,5 +1,6 @@
 import logging
 import warnings
+from typing import Optional, Union
 
 
 class LoggingMixin:
@@ -26,9 +27,9 @@ class LoggingMixin:
 
     def __init__(
         self,
-        logger: logging.Logger | None = None,
-        logging_file: str | None = None,
-        logging_level: int | str | None = None,
+        logger: Optional[logging.Logger] = None,
+        logging_file: Optional[str] = None,
+        logging_level: Optional[Union[int, str]] = None,
         logger_name: str = None,
         *args,
         **kwargs,
@@ -53,8 +54,8 @@ class LoggingMixin:
     def create_logger(
         self,
         logging_file,
-        logging_level: int | str | None = None,
-        name: str | None = None,
+        logging_level: Optional[Union[int, str]] = None,
+        name: Optional[str] = None,
     ):
         """Creates a logger.
 
@@ -89,11 +90,11 @@ class LoggingMixin:
 
         self._logging_mixin_data["logger"] = logger
 
-    def get_logger(self) -> logging.Logger | None:
+    def get_logger(self) -> Optional[logging.Logger]:
         """Returns the logger."""
         return self._logging_mixin_data.get("logger", None)
 
-    def log(self, message: str, level: int | str | None = None):
+    def log(self, message: str, level: Optional[Union[int, str]] = None):
         """Logs a message.
 
         Args:
