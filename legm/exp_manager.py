@@ -65,27 +65,28 @@ class ExperimentManager(LoggingMixin):
 
     @staticmethod
     def argparse_args():
-        args =  LoggingMixin.argparse_args()
+        args = LoggingMixin.argparse_args()
         args.update(
             dict(
-            description=dict(
-                type=str,
-                help="description of experiment",
-                metadata=dict(disable_comparison=True),
-            ),
-            alternative_experiment_name=dict(
-                type=str,
-                help="alternative name for experiment subfolder",
-                metadata=dict(disable_comparison=True),
-            ),
-            logs_precision=dict(
-                type=int,
-                help="precision of logs (number of decimal places); "
-                "default (None) is no rounding",
-                default=None,
-                metadata=dict(disable_comparison=True),
-            ),
-        ))
+                description=dict(
+                    type=str,
+                    help="description of experiment",
+                    metadata=dict(disable_comparison=True),
+                ),
+                alternative_experiment_name=dict(
+                    type=str,
+                    help="alternative name for experiment subfolder",
+                    metadata=dict(disable_comparison=True),
+                ),
+                logs_precision=dict(
+                    type=int,
+                    help="precision of logs (number of decimal places); "
+                    "default (None) is no rounding",
+                    default=None,
+                    metadata=dict(disable_comparison=True),
+                ),
+            )
+        )
         return args
 
     def __init__(
@@ -96,6 +97,7 @@ class ExperimentManager(LoggingMixin):
         description: Optional[str] = None,
         logging_level: Union[int, str] = logging.INFO,
         logs_precision: Optional[int] = None,
+        main_process: bool = True,
     ):
         """Init.
 
@@ -111,9 +113,10 @@ class ExperimentManager(LoggingMixin):
             logging_level: logging level.
             logs_precision: precision of logs (number of decimal places);
                 default (None) is no rounding.
+            main_process: whether this is the main process.
         """
 
-        super().__init__()
+        super().__init__(main_process=main_process)
 
         self.logs_precision = logs_precision
 
@@ -549,6 +552,9 @@ class ExperimentManager(LoggingMixin):
         if isinstance(value, float) and self.logs_precision is not None:
             value = round(value, self.logs_precision)
 
+        if not self.is_main_process():
+            return value
+
         if not test:
             if name.startswith("best_"):
                 name = "_" + name
@@ -604,6 +610,9 @@ class ExperimentManager(LoggingMixin):
             AssertionError: if `basename` is not a valid format
             (judged by extension).
         """
+
+        if not self.is_main_process():
+            return
 
         if basename is None:
             basename = "custom_data.yml"
@@ -1007,6 +1016,9 @@ class ExperimentManager(LoggingMixin):
 
     def log_metrics(self):
         """Logs all metrics."""
+        if not self.is_main_process():
+            return
+
         config_directory = self._get_experiment_folder(pattern_matching=False)
         metric_filename = os.path.join(config_directory, "metrics.yml")
         indexed_metric_filename = os.path.join(
@@ -1132,6 +1144,9 @@ class ExperimentManager(LoggingMixin):
                 in the the dict, and if that is not specified, it defaults to
                 `"mean"`, which is also the general default.
         """
+
+        if not self.is_main_process():
+            return
 
         def aggregate(method, values):
             precision = self.logs_precision or 4
@@ -1374,6 +1389,9 @@ class ExperimentManager(LoggingMixin):
             exclude: which metrics to exclude.
             exclude_pattern: regex pattern to use to exclude metrics.
         """
+
+        if not self.is_main_process():
+            return
 
         if isinstance(aggregation, str):
             aggregation = {"other": aggregation}

@@ -31,6 +31,7 @@ class LoggingMixin:
         logging_file: Optional[str] = None,
         logging_level: Optional[Union[int, str]] = None,
         logger_name: str = None,
+        main_process: bool = True,
         *args,
         **kwargs,
     ):
@@ -42,7 +43,7 @@ class LoggingMixin:
             logging_level: logging level.
             logger_name: name of the logger.
         """
-        self._logging_mixin_data = {}
+        self._logging_mixin_data = {"main_process": main_process}
 
         if logger is not None:
             self._logging_mixin_data["logger"] = logger
@@ -50,6 +51,18 @@ class LoggingMixin:
             self.create_logger(logging_file, logging_level, logger_name)
 
         super().__init__(*args, **kwargs)
+
+    def set_main_process(self, main_process: bool):
+        """Sets the main process.
+
+        Args:
+            main_process: whether the process is the main process.
+        """
+        self._logging_mixin_data["main_process"] = main_process
+
+    def is_main_process(self) -> bool:
+        """Returns whether the process is the main process."""
+        return self._logging_mixin_data["main_process"]
 
     def create_logger(
         self,
@@ -101,6 +114,9 @@ class LoggingMixin:
             message: message to log.
             level: logging level.
         """
+
+        if not self._logging_mixin_data["main_process"]:
+            return
 
         if "logger" not in self._logging_mixin_data:
             warnings.warn("No logger has been initialized.")
