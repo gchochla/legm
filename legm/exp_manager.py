@@ -549,8 +549,15 @@ class ExperimentManager(LoggingMixin):
         elif isinstance(value, Number):
             value = float(value)
 
-        if isinstance(value, float) and self.logs_precision is not None:
-            value = round(value, self.logs_precision)
+        if self.logs_precision is not None:
+            if isinstance(value, float):
+                value = round(value, self.logs_precision)
+            elif (
+                isinstance(value, Sequence)
+                and value
+                and isinstance(value[0], Number)
+            ):
+                value = [round(v, self.logs_precision) for v in value]
 
         if not self.is_main_process():
             return value

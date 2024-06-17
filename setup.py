@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="LeGM",
-    version="1.4.10",
+    version="1.4.11",
     description="Your general ML experiment manager",
     author="Georgios Chochlakis",
     author_email="chochlak@usc.edu",
