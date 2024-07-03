@@ -163,6 +163,9 @@ class ExperimentManager(LoggingMixin):
         # log time
         self._time_metric_names = ("time", "time_per_sample")
 
+        # for warnings when accessing non-existent attributes
+        self.unknown_attrs = set()
+
     def __getattr__(self, name):
 
         if name == "_experiment_category":
@@ -172,9 +175,14 @@ class ExperimentManager(LoggingMixin):
             return self._experiment_name
 
         try:
+            # no .get(name, None) to warn user
             return self._param_dict[name]
         except KeyError:
-            raise AttributeError(f"Param {name} not set")
+            if name not in self._unknown_attrs:
+                self.unknown_attrs.add(name)
+                warnings.warn(
+                    f"Param `{name}` not set. Make sure this is intentional"
+                )
 
     def __setstate__(self, d):  # for pickling
         self.__dict__ = d
