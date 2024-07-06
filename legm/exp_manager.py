@@ -8,6 +8,7 @@ import pprint
 import logging
 import shutil
 import warnings
+import time
 from copy import deepcopy
 from numbers import Number
 from types import SimpleNamespace
@@ -361,6 +362,9 @@ class ExperimentManager(LoggingMixin):
     ):
         """Logs to Tensorboard. Preferably use first because it
         raises an error if handler not initiated."""
+
+        if not self.is_main_process():
+            return
 
         assert (
             self._writer is not None
@@ -785,6 +789,10 @@ class ExperimentManager(LoggingMixin):
             and not pattern_matching
         ):
             return self._experiment_folder
+
+        if not self.is_main_process():
+            # hack to make start work with multiple processes
+            time.sleep(1)
 
         def strict__eq__(eh1: ExperimentHandler, eh2: ExperimentHandler):
             def sorted_dict(d):

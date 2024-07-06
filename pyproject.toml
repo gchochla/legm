@@ -1,6 +1,6 @@
 [project]
 name = "legm"
-version = "1.4.12"
+version = "1.4.13"
 description = "Your general ML experiment manager"
 readme = "README.md"
 requires-python = ">=3.7"
