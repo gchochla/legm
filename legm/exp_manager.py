@@ -165,7 +165,7 @@ class ExperimentManager(LoggingMixin):
         self._time_metric_names = ("time", "time_per_sample")
 
         # for warnings when accessing non-existent attributes
-        self.unknown_attrs = set()
+        self._unknown_attrs = set()
 
     def __getattr__(self, name):
 
@@ -179,7 +179,7 @@ class ExperimentManager(LoggingMixin):
             # no .get(name, None) to warn user
             return self._param_dict[name]
         except KeyError:
-            if name not in self.unknown_attrs:
+            if name not in self._unknown_attrs:
                 self.unknown_attrs.add(name)
                 warnings.warn(
                     f"Param `{name}` not set. Make sure this is intentional"
@@ -536,7 +536,7 @@ class ExperimentManager(LoggingMixin):
         self,
         name: str,
         value: Any,
-        test: bool = False,
+        mode: Optional[str] = None,
         step: Optional[int] = None,
         id: Optional[str] = None,
     ) -> Any:
@@ -546,8 +546,8 @@ class ExperimentManager(LoggingMixin):
         Args:
             name: str name of variable.
             value: any value.
-            test: whether this is a test or dev metric
-                (default is dev, aka False).
+            mode: whether this is a test or dev metric
+                (default None, aka train).
             step: steps trained so far, default is not to log step.
             id: optional id to index metric.
 
@@ -574,9 +574,11 @@ class ExperimentManager(LoggingMixin):
         if not self.is_main_process():
             return value
 
-        if not test:
+        if mode is None or mode == "dev":
             if name.startswith("best_"):
                 name = "_" + name
+            if mode == "dev":
+                name = "dev_" + name
             if id is not None:
                 self._metric_dict_indexed.setdefault(id, {}).setdefault(
                     name, []
@@ -599,19 +601,28 @@ class ExperimentManager(LoggingMixin):
     def set_dict_metrics(
         self,
         metrics_dict: Union[Dict[str, Any], Dict[str, Dict[str, Any]]],
-        test: bool = False,
+        mode: Optional[str] = None,
         step: Optional[int] = None,
+        **kwargs,  # for legacy arguments
     ) -> Dict[str, Any]:
         """`set_metric` for names and values in a dict.
         Handles additionally indexed dict (index is first key).
         Returns the input dict."""
 
+        if "test" in kwargs:
+            warnings.warn(
+                "`test: bool` is deprecated, use `mode: str` instead",
+                DeprecationWarning,
+            )
+            if kwargs["test"] and mode is None:
+                mode = "test"
+
         for k, v in metrics_dict.items():
             if isinstance(v, dict):
                 for kk, vv in v.items():
-                    self.set_metric(kk, vv, test=test, step=step, id=k)
+                    self.set_metric(kk, vv, mode=mode, step=step, id=k)
             else:
-                self.set_metric(k, v, test=test, step=step)
+                self.set_metric(k, v, mode=mode, step=step)
 
         return metrics_dict
 
