@@ -180,7 +180,7 @@ class ExperimentManager(LoggingMixin):
             return self._param_dict[name]
         except KeyError:
             if name not in self._unknown_attrs:
-                self.unknown_attrs.add(name)
+                self._unknown_attrs.add(name)
                 warnings.warn(
                     f"Param `{name}` not set. Make sure this is intentional"
                 )
