@@ -833,7 +833,7 @@ class ExperimentManager(LoggingMixin):
                 obj = ExperimentHandler.load_existent(
                     abs_subexperiment_subfolder
                 )
-            except EOFError:
+            except (EOFError, FileNotFoundError):
                 continue
 
             if strict__eq__(self, obj):
