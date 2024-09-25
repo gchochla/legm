@@ -15,6 +15,7 @@ from types import SimpleNamespace
 from typing import Any, Dict, Optional, Union, Callable, List, Tuple, Sequence
 from collections import defaultdict
 
+import torch
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
@@ -626,6 +627,8 @@ class ExperimentManager(LoggingMixin):
 
         return metrics_dict
 
+    _custom_data_formats = ["yml", "txt", "json", "pkl", "pt"]
+
     def set_custom_data(self, data, basename: Optional[str] = None):
         """Sets custom data to designated file (default yml).
 
@@ -649,7 +652,7 @@ class ExperimentManager(LoggingMixin):
         basename.replace("yaml", "yml")
 
         format = os.path.splitext(basename)[1][1:]
-        assert format in ("yml", "txt", "json", "pkl"), "Invalid file format"
+        assert format in self._custom_data_, f"Invalid file format: .{format}"
 
         filename = self.get_save_filename(basename=basename)
 
@@ -985,6 +988,8 @@ class ExperimentManager(LoggingMixin):
                 elif format == "pkl":
                     with open(fn, "rb") as fp:
                         custom_data = pickle.load(fp)
+                elif format == "pt":
+                    custom_data = torch.load(fn)
 
                 custom_experiments.setdefault(key, {}).update(
                     {
@@ -1123,13 +1128,16 @@ class ExperimentManager(LoggingMixin):
             format = info["format"]
             data = info["data"]
             data["description"] = self._description
-            if format in ("yml", "json"):
+            if format in ("yml", "json", "pt"):
                 if exists:
-                    with open(fn) as fp:
-                        if format == "yml":
-                            existing_data = yaml.safe_load(fp)
-                        else:
-                            existing_data = json.load(fp)
+                    if format == "pt":
+                        existing_data = torch.load(fn)
+                    else:
+                        with open(fn) as fp:
+                            if format == "yml":
+                                existing_data = yaml.safe_load(fp)
+                            else:
+                                existing_data = json.load(fp)
 
                     data = {
                         **existing_data,
@@ -1139,11 +1147,14 @@ class ExperimentManager(LoggingMixin):
                     # create wrapper dictionaries with #experiment in key
                     data = {f"experiment_0": data}
 
-                with open(fn, "w") as fp:
-                    if format == "yml":
-                        yaml.dump(data, fp)
-                    else:
-                        json.dump(data, fp)
+                if format == "pt":
+                    torch.save(data, fn)
+                else:
+                    with open(fn, "w") as fp:
+                        if format == "yml":
+                            yaml.dump(data, fp)
+                        else:
+                            json.dump(data, fp)
             elif format == "pkl":
                 if exists:
                     with open(fn, "rb") as fp:
