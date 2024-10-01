@@ -652,7 +652,9 @@ class ExperimentManager(LoggingMixin):
         basename.replace("yaml", "yml")
 
         format = os.path.splitext(basename)[1][1:]
-        assert format in self._custom_data_, f"Invalid file format: .{format}"
+        assert (
+            format in self._custom_data_formats
+        ), f"Invalid file format: .{format}"
 
         filename = self.get_save_filename(basename=basename)
 
