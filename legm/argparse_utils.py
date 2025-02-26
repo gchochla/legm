@@ -98,3 +98,84 @@ def add_metadata(
                 metadata_dest[
                     gridparse.GridArgumentParser._add_split_in_arg(k, split)
                 ] = split_metadata
+
+
+def parse_args_and_metadata(
+    modules: list[Any],
+    args: list[dict[str, Any]],
+    subparsers: list[str] = None,
+    dest: str = None,
+    conditional_modules: list[dict[str, Any]] = None,
+    conditional_args: list[dict[str, dict[str, Any]]] = None,
+) -> tuple[list[gridparse.Namespace], dict[str, dict[str, Any]]]:
+    """Parses arguments and returns metadata.
+
+    Args:
+        modules: list of modules with `argparse_args` method.
+        args: list of dictionaries with arguments.
+        subparsers: list of subparsers.
+        dest: destination/argument of subparsers.
+        conditional_modules: list of conditional modules, i.e. modules per subparser.
+        conditional_args: list of conditional arguments, i.e. arguments per subparser.
+
+    Returns:
+        tuple with parsed arguments and metadata.
+    """
+
+    parser = gridparse.GridArgumentParser()
+    metadata = {}
+
+    if not isinstance(modules, list):
+        modules = [modules]
+    if not isinstance(args, list):
+        args = [args]
+
+    if subparsers:
+        sp = parser.add_subparsers(dest=dest)
+
+        if conditional_modules:
+            if not isinstance(conditional_modules, list):
+                conditional_modules = [conditional_modules]
+        if conditional_args:
+            if not isinstance(conditional_args, list):
+                conditional_args = [conditional_args]
+
+        for selector in subparsers:
+            selected_sp = sp.add_parser(selector)
+            metadata[selector] = {}
+
+            argparse_args = {}
+            if conditional_modules:
+                current_modules = [
+                    m[selector] for m in conditional_modules
+                ] + modules
+            for module in modules + current_modules:
+                argparse_args.update(module.argparse_args())
+
+            add_arguments(selected_sp, argparse_args, replace_underscores=True)
+            add_metadata(metadata[selector], argparse_args)
+
+            for arg in args:
+                add_arguments(selected_sp, arg, replace_underscores=True)
+                add_metadata(metadata[selector], arg)
+
+            if conditional_args:
+                for arg in conditional_args:
+                    add_arguments(
+                        selected_sp, arg[selector], replace_underscores=True
+                    )
+                    add_metadata(metadata[selector], arg[selector])
+
+    else:
+        argparse_args = {}
+        for module in modules:
+            argparse_args.update(module.argparse_args())
+
+        add_arguments(parser, argparse_args, replace_underscores=True)
+        add_metadata(metadata, argparse_args)
+
+        for arg in args:
+            add_arguments(parser, arg, replace_underscores=True)
+            add_metadata(metadata, arg)
+
+    return parser.parse_args(), metadata
