@@ -827,25 +827,42 @@ class ExperimentManager(LoggingMixin):
         if not os.path.exists(experiment_subfolder):
             os.makedirs(experiment_subfolder)
 
-        exact_match_subfolder = None
-        config_subfolders = []
-        for subexperiment_subfolder in os.listdir(experiment_subfolder):
-            abs_subexperiment_subfolder = os.path.join(
-                experiment_subfolder, subexperiment_subfolder
-            )
+        def set_folders(folder):
+            exact_match_subfolder = None
+            config_subfolders = []
 
-            try:
-                obj = ExperimentHandler.load_existent(
-                    abs_subexperiment_subfolder
-                )
-            except (EOFError, FileNotFoundError):
-                continue
+            for subfolder in os.listdir(folder):
+                abs_subfolder = os.path.join(folder, subfolder)
 
-            if strict__eq__(self, obj):
-                exact_match_subfolder = abs_subexperiment_subfolder
+                # check if abs_subfolder is a directory of multiple experiments
+                # instead of a directory of a single experiment
+                # (because alternative_name has a path instead of a name)
+                # HACK: check if the folder ends in _0, _1,, ..., _10, etc.
+                if not re.match(r".*_\d+$", subfolder):
+                    rec_exact_match_subfolder, rec_config_subfolders = (
+                        set_folders(abs_subfolder)
+                    )
+                    if rec_exact_match_subfolder is not None:
+                        exact_match_subfolder = rec_exact_match_subfolder
+                    config_subfolders.extend(rec_config_subfolders)
 
-            elif self == obj:
-                config_subfolders.append(abs_subexperiment_subfolder)
+                else:
+                    try:
+                        obj = ExperimentHandler.load_existent(abs_subfolder)
+                    except (EOFError, FileNotFoundError):
+                        continue
+
+                    if strict__eq__(self, obj):
+                        exact_match_subfolder = abs_subfolder
+
+                    elif self == obj:
+                        config_subfolders.append(abs_subfolder)
+
+            return exact_match_subfolder, config_subfolders
+
+        exact_match_subfolder, config_subfolders = set_folders(
+            experiment_subfolder
+        )
 
         # if an exact match was not found
         if exact_match_subfolder is None:

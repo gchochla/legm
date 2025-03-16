@@ -29,3 +29,7 @@ To begin logging, we have to use `.start()`. During training, you can register m
 ## Log
 
 To log all those results, at the end of training, use `.log_metrics()`, which creates `metrics.yml` that contains all metrics for all steps (if any non-indexed metrics have been logged), `indexed_metrics.yml` for indexed metrics, `.aggregate_results()`, which aggregates the best and test metrics and calculates mean and standard deviation from the `metrics.yml` file (because more runs may be logged in there) into `aggregated_metrics.yml`, and the equivalent in `aggregated_indexed_metrics.yml`, and `.plot()` (that contains optional arguments) to plot the metrics in `plots/`.
+
+## Folder Structure
+
+To create a more intricate folder structure, and control the name of each experiment more precisely, you can use `alternative_experiment_name`, which can be template / formattable string. You can include the name of variables by enclosing them in curly brackets (`{}`), for example: `this-experiment-var1={variable_1}-var2={variable_2}`. Moreover, you can use a path as an alternative name: `path/to/subfolder/this-experiment-var1={variable_1}-var2={variable_2}`, which will results in subfolders in within the folder you are already logging in.
