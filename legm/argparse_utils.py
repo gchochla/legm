@@ -149,7 +149,10 @@ def parse_args_and_metadata(
                 current_modules = [
                     m[selector] for m in conditional_modules
                 ] + modules
-            for module in modules + current_modules:
+            else:
+                current_modules = modules
+
+            for module in current_modules:
                 argparse_args.update(module.argparse_args())
 
             add_arguments(selected_sp, argparse_args, replace_underscores=True)
