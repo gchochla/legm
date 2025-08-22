@@ -19,6 +19,7 @@ import torch
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
+from scipy import stats
 from torch.utils.tensorboard import SummaryWriter
 
 from legm.logging_utils import LoggingMixin
@@ -1196,13 +1197,18 @@ class ExperimentManager(LoggingMixin):
                     fp.write(data)
 
     def aggregate_results(
-        self, aggregation: Union[str, Dict[str, str]] = "mean"
+        self, aggregation: Union[str, Dict[str, str]] = "confidence"
     ):
         """Presents aggregated results of current configuration.
 
         Args:
             aggregation: how to aggregate best metrics across experiments.
-                Can be an `str` (`"mean"` which includes std, or `"median`")
+                Can be an `str`:
+                - `"mean"` which includes std
+                - `"median"`
+                - `"confidence"`, which can include the confidence level
+                    (e.g. `"confidence_0.95"` for 95% confidence). Default is 0.95.
+                - `"outlier_mean"`, which removes outliers before computing the mean.
                 or a dict whose keys are the metrics. The key `"other"` is
                 reserved to be used as the default for each metric not specified
                 in the the dict, and if that is not specified, it defaults to
@@ -1230,6 +1236,22 @@ class ExperimentManager(LoggingMixin):
                 aggregated_value = (
                     f"{round(np.mean(values), precision)}+-"
                     f"{round(np.std(values), precision)}"
+                )
+            elif method.startswith("confidence"):
+                try:
+                    confidence_level = float(method.split("_")[-1])
+                    if confidence_level >= 1:
+                        confidence_level /= 100
+                    if confidence_level <= 0 or confidence_level >= 1:
+                        raise ValueError("Invalid confidence level")
+                except ValueError:
+                    confidence_level = 0.95  # default to 95% confidence level
+                z = stats.norm.ppf((1 + confidence_level) / 2)
+                # compute confidence intervals
+                ci = z * np.std(values) / np.sqrt(len(values))
+                aggregated_value = (
+                    f"{round(np.mean(values), precision)}+-"
+                    f"{round(ci, precision)}"
                 )
 
             return aggregated_value
